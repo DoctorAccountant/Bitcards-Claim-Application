@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>Bitcard QC / ceremony tool — KEYLESS / OFFLINE (v0.4)</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:760px;margin:0 auto;padding:18px;color:#1a1a1a;background:#fbfaf6}
+  h1{font-size:20px;margin:0 0 2px}
+  .sub{color:#6b6b6b;font-size:13px;margin:0 0 16px}
+  .note{background:#eaf5ee;border:1px solid #bfe0cd;color:#1d5b38;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;margin:8px 0 14px}
+  .panel{background:#fff;border:1px solid #e6e2d8;border-radius:12px;padding:14px 16px;margin:12px 0}
+  .panel h2{font-size:15px;margin:0 0 10px}
+  label{display:block;font-size:12px;color:#6b6b6b;margin:8px 0 3px}
+  input{width:100%;font:inherit;font-size:13px;border:1px solid #ddd;border-radius:8px;padding:9px;font-family:ui-monospace,Consolas,monospace}
+  button{font:inherit;font-size:13px;font-weight:600;background:#1d7a4d;color:#fff;border:none;border-radius:8px;padding:9px 14px;cursor:pointer;margin-top:8px}
+  button.sec{background:#333}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all;background:#f3f1ea;border-radius:8px;padding:9px;white-space:pre-wrap;margin:6px 0}
+  .ok{color:#1d7a4d;font-weight:700}.bad{color:#c0392b;font-weight:700}
+  #status{font-size:13px;font-weight:600}
+  #buildhash{font-size:11px;color:#6b6b6b;word-break:break-all;margin:6px 0}
+</style>
+</head>
+<body>
+  <h1>Bitcard QC / ceremony tool</h1>
+  <p class="sub">Verifies each sealed card reproduces the key in its QR, before it ships (spec §2a). Spec v0.4.</p>
+  <div class="note">✓ This tool is KEYLESS: it contains no maker private key and cannot create or sign cards. It can run on a separate station from the maker tool. Run it offline.</div>
+
+  <div class="panel">
+    <h2>0 · Status / self-test</h2>
+    <div id="status">starting…</div>
+    <div id="buildhash"></div>
+    <div id="selftest" class="mono"></div>
+  </div>
+
+  <div class="panel">
+    <h2>1 · Operator / witness (for this batch)</h2>
+    <label>Operator ID</label>
+    <input id="operator" placeholder="e.g. CT">
+    <label>Witness ID</label>
+    <input id="witness" placeholder="e.g. second person present">
+  </div>
+
+  <div class="panel">
+    <h2>2 · Verify a sealed card (§2a)</h2>
+    <p class="sub">Read Part 1 back FROM THE PHYSICAL CARD and scan its QR. The tool re-derives the key from the words and confirms it matches the key in the QR. Only after a MATCH may you destroy the maker copy.</p>
+    <label>Sealed Part 1 — re-type the 12 words read off the physical card</label>
+    <input id="sealWords" placeholder="word1 … word12">
+    <label>Card QR content (bitcard:… — scanned from the physical card)</label>
+    <input id="sealUri" placeholder="bitcard:…">
+    <button id="verifyCardBtn">Verify sealed card</button>
+    <div id="verifyCardOut" class="mono"></div>
+    <button id="destroyBtn" class="sec">Confirm destruction of maker copy (after a MATCH)</button>
+    <div id="destroyOut" class="mono"></div>
+  </div>
+
+  <div class="panel">
+    <h2>3 · Batch audit</h2>
+    <p class="sub">Durable, exportable record: serial, record hash, public-key prefix, PASS/FAIL, timestamp, operator/witness, destruction sign-off. The words are never recorded.</p>
+    <div id="auditOut" class="mono"></div>
+    <button id="exportBtn">Export audit (JSON)</button>
+    <div id="exportOut" class="mono"></div>
+  </div>
+<!--APPSCRIPT-->
+</body>
+</html>

@@ -1,0 +1,40 @@
+{
+  "spec": "bitcard-claim-spec v0.4",
+  "curve": "secp256k1",
+  "network": "testnet",
+  "scriptType": "P2WPKH",
+  "kdf": "BIP39(English, NFKD, empty passphrase) -> PBKDF2-HMAC-SHA512 x2048 -> BIP32 master private key (HMAC-SHA512, key='Bitcoin seed', take left 32 bytes) -> scalar; reject 0 or >= n",
+  "aggregation": "d = (d1 + d2) mod n ; P = P1 + P2 (EC point addition) ; address = P2WPKH(compressed P)",
+  "note": "Vectors 1 and 2 are the same pair with the halves swapped; their addresses MUST be identical (additive aggregation is commutative). Mainnet would use the same Pcombined with the 'bc' bech32 prefix instead of 'tb'.",
+  "generatedBy": "bitcard claim-testnet.html reference implementation (@noble/curves, @scure/bip39, @scure/btc-signer)",
+  "validatedOnChain": "testnet tx d5245874007557429eb8e4267490e1190ed8ac37c763cad5934606a66cdfc96c, confirmed block 5013091 (real funded sweep of an aggregate P1+P2 address)",
+  "cardRecord": {
+    "note": "v0.4 — cards carry NO issuer signature. The QR payload is base64url(record) with nothing appended. record(41) = version(1) | network(1) | scripttype(1) | kdf(1) | P1(33, compressed) | serial(4, uint32 BE).",
+    "recordHexExample": "0101010103d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee049400000001",
+    "encoding": "cardURI = 'bitcard:' + base64url_nopad(record). The claim app validates version/network/scripttype/kdf and that P1 is a valid secp256k1 point; there is no signature to verify."
+  },
+  "vectors": [
+    {
+      "part1Mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+      "part2Mnemonic": "legal winner thank year wave sausage worth useful legal winner thank yellow",
+      "d1Hex": "1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67",
+      "d2Hex": "7e56ecf5943d79e1f5f87e11c768253d7f3fcf30ae71335611e366c578b4564e",
+      "P1": "03d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee0494",
+      "P2": "02c4c9a1e37f5601ed4c7d0eb202e0b55e7891c4787853bef6c3b96a187de12d83",
+      "Pcombined": "0224e2c50bd374f89dd83f7be42af1ef0a3d3092314ec76cdcbd10eea5c425a51c",
+      "dCombinedHex": "968eaeb422670fce07c620c22d7d41204ef45a104cb8e4a7e64e41791ad135b5",
+      "addressTestnet": "tb1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrxddllm"
+    },
+    {
+      "part1Mnemonic": "legal winner thank year wave sausage worth useful legal winner thank yellow",
+      "part2Mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+      "d1Hex": "7e56ecf5943d79e1f5f87e11c768253d7f3fcf30ae71335611e366c578b4564e",
+      "d2Hex": "1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67",
+      "P1": "02c4c9a1e37f5601ed4c7d0eb202e0b55e7891c4787853bef6c3b96a187de12d83",
+      "P2": "03d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee0494",
+      "Pcombined": "0224e2c50bd374f89dd83f7be42af1ef0a3d3092314ec76cdcbd10eea5c425a51c",
+      "dCombinedHex": "968eaeb422670fce07c620c22d7d41204ef45a104cb8e4a7e64e41791ad135b5",
+      "addressTestnet": "tb1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrxddllm"
+    }
+  ]
+}

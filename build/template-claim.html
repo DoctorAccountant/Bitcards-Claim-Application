@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://blockstream.info https://mempool.space; base-uri 'none'; form-action 'none'">
+<title>Bitcard (v0.4)</title>
+<style>
+  :root{ --bg:#fbfaf6; --card:#fff; --ink:#1a1a1a; --muted:#6b6b6b; --line:#e6e2d8; --brand:#E07B12; --brandd:#c26a08; --ok:#1d7a4d; --bad:#c0392b; --soft:#f3f1ea; }
+  *{box-sizing:border-box}
+  body{ margin:0; background:var(--bg); color:var(--ink); line-height:1.55;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap{ max-width:600px; margin:0 auto; padding:22px 18px 60px; }
+  header{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
+  h1{ font-size:24px; margin:0; letter-spacing:-.3px; }
+  #netbadge{ font-size:11px; font-weight:800; letter-spacing:.03em; border-radius:999px; padding:3px 10px; white-space:nowrap; }
+  .tag{ color:var(--muted); font-size:15px; margin:0 0 20px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px 18px; margin:14px 0; box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.04); }
+  label{ display:block; font-size:14px; font-weight:600; margin:14px 0 6px; }
+  label:first-child{ margin-top:0; }
+  input{ width:100%; font:inherit; font-size:15px; border:1.5px solid #dcd8cc; border-radius:10px; padding:12px; background:#fff; }
+  input:focus{ outline:none; border-color:var(--brand); }
+  button{ font:inherit; font-size:15px; font-weight:700; background:var(--brand); color:#fff; border:none; border-radius:11px; padding:13px 18px; cursor:pointer; margin-top:12px; width:100%; }
+  button:hover{ background:var(--brandd); }
+  button.ghost{ background:#fff; color:var(--ink); border:1.5px solid #dcd8cc; }
+  button.ghost:hover{ background:var(--soft); }
+  .choice{ text-align:left; background:#fff; color:var(--ink); border:1.5px solid var(--line); border-radius:14px; padding:16px 18px; margin-top:12px; }
+  .choice:hover{ border-color:var(--brand); background:#fffdf9; }
+  .choice b{ display:block; font-size:16px; }
+  .choice span{ display:block; font-weight:400; color:var(--muted); font-size:13.5px; margin-top:2px; }
+  .choice.quiet{ border-style:dashed; padding:11px 18px; }
+  .choice.quiet b{ font-size:14px; font-weight:600; }
+  .step{ font-size:12px; font-weight:800; color:var(--brand); text-transform:uppercase; letter-spacing:.06em; margin:2px 0 2px; }
+  h2{ font-size:19px; margin:2px 0 4px; }
+  .lead{ color:var(--muted); font-size:14.5px; margin:0 0 6px; }
+  .help{ color:var(--muted); font-size:13px; font-weight:400; margin:4px 0 6px; }
+  .note{ font-size:13.5px; color:var(--muted); background:var(--soft); border-radius:10px; padding:10px 12px; margin:10px 0; }
+  .out{ font-family:ui-monospace,Consolas,monospace; font-size:13px; overflow-wrap:anywhere; white-space:pre-wrap; background:var(--soft); border-radius:10px; padding:11px; margin:8px 0; }
+  .out:empty{ display:none; }
+  .wc{ font-size:12px; color:var(--muted); margin:3px 2px 0; min-height:14px; }
+  .ok{ color:var(--ok); font-weight:700; } .bad{ color:var(--bad); font-weight:700; }
+  .back{ display:inline-block; color:var(--muted); font-size:14px; cursor:pointer; margin-bottom:6px; }
+  .back:hover{ color:var(--ink); }
+  .hide{ display:none; }
+  a{ color:var(--brand); font-weight:700; }
+  details{ margin-top:26px; } summary{ color:var(--muted); font-size:13px; cursor:pointer; }
+  #buildhash{ font-size:11px; color:var(--muted); word-break:break-all; margin:8px 0; }
+  #selftest{ font-family:ui-monospace,Consolas,monospace; font-size:11.5px; color:var(--muted); white-space:pre-wrap; }
+  #status{ font-size:12px; color:var(--muted); margin-top:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Bitcard</h1>
+    <span id="netbadge"></span>
+  </header>
+  <p class="tag">A gift of bitcoin. No app, no sign-up.</p>
+
+  <!-- CHOOSER -->
+  <div id="chooser">
+    <div class="card">
+      <label>Scan the code on the back of your card, or paste it here</label>
+      <input id="cardUri" placeholder="bitcard:..." autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div id="cardStatus" class="out"></div>
+    </div>
+    <p class="lead" style="margin:18px 0 0">First, which one are you?</p>
+    <button id="pathGive" class="choice"><b>🎁&nbsp; I'm giving this card</b><span>Put bitcoin on it, then give it.</span></button>
+    <button id="pathClaim" class="choice"><b>💰&nbsp; This card was given to me</b><span>Move the bitcoin on it to your own wallet.</span></button>
+    <button id="pathBal" class="choice quiet"><b>Just checking the balance?</b><span>You only need the 12 handwritten words. Keep the panel sealed.</span></button>
+  </div>
+
+  <!-- GIVE FLOW -->
+  <div id="giveFlow" class="hide">
+    <span class="back" id="giveBack">← back</span>
+    <p class="lead">Three steps: write the words, check them, add bitcoin. (Was this card given to you, with words already written on it? Go back and choose: This card was given to me.)</p>
+    <div class="card">
+      <div class="step">Step 1</div>
+      <h2>Get your 12 words</h2>
+      <p class="lead">Tap the button and we'll create 12 words. Write them on the card's blank "your half" lines. Each tap makes a fresh set, so don't tap again after you've written them down.</p>
+      <button id="setupBtn">Make my 12 words</button>
+      <div id="setupOut" class="out"></div>
+    </div>
+    <div class="card">
+      <div class="step">Step 2</div>
+      <h2>Double-check what you wrote</h2>
+      <p class="lead">Re-type the 12 words exactly as you wrote them on the card, in order, with a space between each word (extra spaces or capitals are fine). If they match, you know the card itself can unlock the bitcoin later.</p>
+      <input id="verifyWords" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button id="verifyBtn" class="ghost">Check my words</button>
+      <div id="verifyOut" class="out"></div>
+    </div>
+    <div class="card hide" id="fundBox">
+      <div class="step">Step 3</div>
+      <h2>Add bitcoin, seal, give</h2>
+      <p class="lead">From your own wallet, send the amount you want to give to the address below. One honest note: a network fee comes off when the card is claimed, so very small amounts (a few thousand sats) can be mostly eaten by it. When the payment shows as complete, seal the words and give the card.</p>
+      <div id="fundOut" class="out"></div>
+      <button id="arriveBtn" class="ghost">Check if it arrived</button>
+      <div id="arriveOut" class="out"></div>
+      <div class="note">Tip for whoever you give it to: they scan the card, scratch the panel, and type both sets of words. No app, no sign-up.</div>
+    </div>
+  </div>
+
+  <!-- CLAIM FLOW -->
+  <div id="claimFlow" class="hide">
+    <span class="back" id="claimBack">← back</span>
+    <div class="card">
+      <h2>Claim your bitcoin</h2>
+      <p class="lead">Let's see what's on this card, then move it into a wallet of your own, one step at a time. Nothing moves until you tick a box and confirm at the final step, and you can start over at any point before that.</p>
+    </div>
+    <div class="card">
+      <div class="step">Step 1</div>
+      <h2>Enter the words from the card</h2>
+      <p class="lead">You'll need both sets of 12 words from the back of the card. Type each set in order, with a space between each word (extra spaces or capitals are fine).</p>
+      <label>The 12 handwritten words (the card's "your half" lines)</label>
+      <input id="claimP2" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="wc" id="wc2"></div>
+      <label>The 12 printed words under the scratch panel ("our half", scratch it off now)</label>
+      <input id="claimP1" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="wc" id="wc1"></div>
+      <div class="note">Use your own phone in a private place. Anyone who sees or photographs these words can take the bitcoin.</div>
+      <button id="showBtn">Show my bitcoin</button>
+      <div id="showOut" class="out"></div>
+      <button id="retryBal" class="ghost hide">Try again</button>
+    </div>
+    <div class="card hide" id="sendSection">
+      <div class="step">Step 2</div>
+      <h2>Send it to your wallet</h2>
+      <label>Your wallet address</label>
+      <p class="help">Open any bitcoin wallet app you trust, tap Receive, and copy the address it shows into this box. It usually starts with bc1. An address is safe to copy and paste, it's like an account number, not a password.</p>
+      <input id="dest" placeholder="bc1..." autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button id="genDest" class="ghost">I don't have a wallet yet</button>
+      <div id="destOut" class="out"></div>
+      <button id="reviewBtn">Review before sending</button>
+      <div id="claimOut" class="out"></div>
+      <label class="hide" id="confirmRow" style="display:flex;gap:9px;align-items:flex-start;font-weight:500;font-size:14px"><input type="checkbox" id="destConfirm" style="width:auto;margin-top:3px"> I checked the address above and it is correct.</label>
+      <button id="bcastBtn" class="hide">Send my bitcoin</button>
+      <div id="bcastOut" class="out"></div>
+    </div>
+  </div>
+
+  <!-- BALANCE FLOW -->
+  <div id="balFlow" class="hide">
+    <span class="back" id="balBack">← back</span>
+    <div class="card">
+      <h2>Check the balance</h2>
+      <p class="lead">You only need the 12 handwritten words. Keep the panel sealed. Type them in order, with a space between each word.</p>
+      <label>The 12 handwritten words ("your half" on the card)</label>
+      <input id="balWords" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button id="balCheckBtn">Check the balance</button>
+      <div id="balFlowOut" class="out"></div>
+    </div>
+  </div>
+
+  <details>
+    <summary>Is this app genuine? (optional check)</summary>
+    <div class="note" style="margin-top:10px">This app runs entirely on your device and your words never leave it. To look up balances and send payments it talks to two public bitcoin servers (blockstream.info and mempool.space). They are read-only windows onto the bitcoin network: they never see your words, never hold your bitcoin, and cannot change anything. The app also requires them to agree with each other before it trusts what they report. And if they ever shut down, any bitcoin tool can take their place, because your bitcoin lives on the bitcoin network itself, not with them and not with us.</div>
+    <div class="note">Want proof you are running the real, unchanged app? Compare the fingerprint below with the official one published at bitcards.xyz. An exact match means this copy has not been tampered with. Most people can skip this.</div>
+    <div id="buildhash"></div>
+    <div id="selftest"></div>
+    <div id="status">starting...</div>
+  </details>
+</div>
+<!--APPSCRIPT-->
+</body>
+</html>

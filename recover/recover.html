@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recover a Bitcard</title>
+<style>
+  :root{ --bg:#fbfaf6; --fg:#1a1a1a; --muted:#6b6b6b; --card:#fff; --line:#e6e2d8; --warn:#c0392b; --warnbg:#fdecea; --accent:#E07B12; }
+  @media (prefers-color-scheme:dark){ :root{ --bg:#17150f; --fg:#efece3; --muted:#a8a497; --card:#201d16; --line:#3a3528; --warn:#f09595; --warnbg:#3f1716; --accent:#e3b65c; } }
+  *{box-sizing:border-box} body{ margin:0; background:var(--bg); color:var(--fg); line-height:1.6;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; }
+  .wrap{ max-width:760px; margin:0 auto; padding:40px 22px 80px; }
+  h1{ font-size:26px; margin:0 0 6px; } h2{ font-size:18px; margin:30px 0 8px; }
+  .lede{ color:var(--muted); font-size:16px; margin:0 0 22px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin:14px 0; }
+  .warn{ border:1px solid var(--warn); background:var(--warnbg); border-radius:12px; padding:14px 18px; margin:16px 0; }
+  .warn b{ color:var(--warn); }
+  ol{ padding-left:22px } li{ margin:8px 0 } code{ font-family:ui-monospace,Consolas,monospace; font-size:.88em;
+    background:rgba(128,128,128,.14); border-radius:5px; padding:1px 6px; }
+  pre{ background:rgba(128,128,128,.12); border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+    overflow-x:auto; font-family:ui-monospace,Consolas,monospace; font-size:12.5px; }
+  .step{ font-weight:700; color:var(--accent); }
+  .foot{ color:var(--muted); font-size:12.5px; margin-top:36px; border-top:1px solid var(--line); padding-top:14px; }
+  a{ color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Recover a Bitcard</h1>
+  <p class="lede">Your bitcoin is recoverable with standard tools <b>forever</b> — even if Bitcard, its app, and this website no longer exist. This page tells you how, and lets you verify any tool you use.</p>
+
+  <div class="warn">
+    <p><b>Read this first.</b> A Bitcard uses <b>two</b> sets of 12 words — Part&nbsp;1 (under the scratch/seal on the card) and Part&nbsp;2 (written on the card). <b>These are NOT a normal wallet seed.</b> Typed into an ordinary wallet app they will show an empty, wrong wallet. You must <b>combine both halves</b> the Bitcard way (below) to get the real key. If a wallet shows nothing, the card is not empty — you are using the wrong method.</p>
+  </div>
+
+  <h2>What you need</h2>
+  <div class="card">
+    <p><b>Part 1</b> — 12 words hidden under the scratch panel on the card (peel it).<br>
+       <b>Part 2</b> — 12 words handwritten on the card by the buyer.</p>
+    <p>You need <b>both</b>. Either half alone cannot spend, reveal the balance, or even compute the address.</p>
+  </div>
+
+  <h2>Three ways to recover — easiest first</h2>
+  <div class="card">
+    <p><span class="step">1. The Bitcard app (easiest).</span> Open the claim app, enter both halves, and it sweeps the coins to a wallet you choose. The app is open-source and runs offline. If it is still online, this is all you need.</p>
+    <p><span class="step">2. The offline script (no app, no website).</span> Run <code>bitcard-recover.py</code> (kept alongside this page). It uses only the Python standard library — no installs — and prints the address and an importable private key (WIF):</p>
+    <pre>python bitcard-recover.py --selftest        # confirms the tool is correct
+python bitcard-recover.py --part1 "…12 words…" --part2 "…12 words…"</pre>
+    <p>Import the printed <b>WIF</b> into Electrum, Sparrow, or any wallet and send the coins wherever you like.</p>
+    <p><span class="step">3. From scratch (if even the script is gone).</span> Any programmer can reproduce the key from the algorithm below with any Bitcoin library. This is why the coins can never be locked away by us disappearing.</p>
+  </div>
+
+  <h2>The algorithm (bitcard-claim-spec v0.3)</h2>
+  <div class="card">
+    <pre>curve      = secp256k1  (order n)
+for each half (Part 1, Part 2):
+    seed   = PBKDF2-HMAC-SHA512(words, salt="mnemonic", 2048 rounds)   # BIP39, empty passphrase
+    I      = HMAC-SHA512(key="Bitcoin seed", seed)                     # BIP32 master
+    d_i    = int(I[0:32])  mod-check: reject if 0 or >= n
+combined d = (d1 + d2)  mod n
+address    = P2WPKH( compressed( d * G ) )     # bech32 hrp: "bc" mainnet, "tb" testnet</pre>
+    <p class="lede" style="margin:6px 0 0">The card record byte (mainnet vs testnet) is public and on the card; everything else above is standard BIP39 / secp256k1.</p>
+  </div>
+
+  <h2>Verify any tool with the frozen test vector</h2>
+  <div class="card">
+    <p>A correct implementation must turn these two halves into exactly this address. If your tool does, trust it with your real words:</p>
+    <pre>Part 1:  abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about
+Part 2:  legal winner thank year wave sausage worth useful legal winner thank yellow
+=>  address (testnet):  tb1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrxddllm
+    private key (hex):  968eaeb422670fce07c620c22d7d41204ef45a104cb8e4a7e64e41791ad135b5</pre>
+  </div>
+
+  <p class="foot"><b>This is one copy of an open standard — it does not need to stay online to work.</b> The method above, the spec (<code>bitcard-claim-spec.md</code>), the frozen vectors (<code>bitcard-test-vectors.json</code>), and <code>bitcard-recover.py</code> are open-source and mirrored (public code repositories + content-addressed storage such as IPFS / Arweave), so recovery survives without any single website, domain, or company — including us. Recovery needs only your words, the method above, and any Bitcoin tool; nothing on your card depends on a site we keep alive. Bitcard never holds your keys or your coins.</p>
+</div>
+</body>
+</html>
