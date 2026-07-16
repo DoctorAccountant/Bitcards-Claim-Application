@@ -43,10 +43,10 @@
   <h2>Three ways to recover — easiest first</h2>
   <div class="card">
     <p><span class="step">1. The Bitcard app (easiest).</span> Open the claim app, enter both halves, and it sweeps the coins to a wallet you choose. The app is open-source and runs offline. If it is still online, this is all you need.</p>
-    <p><span class="step">2. The offline script (no app, no website).</span> Run <code>bitcard-recover.py</code> (kept alongside this page). It uses only the Python standard library — no installs — and prints the address and an importable private key (WIF):</p>
+    <p><span class="step">2. The offline script (no app, no website).</span> Run <code>bitcard-recover.py</code> (kept alongside this page). It uses only the Python standard library — no installs — validates your words, and prints the address and the private key (WIF):</p>
     <pre>python bitcard-recover.py --selftest        # confirms the tool is correct
-python bitcard-recover.py --part1 "…12 words…" --part2 "…12 words…"</pre>
-    <p>Import the printed <b>WIF</b> into Electrum, Sparrow, or any wallet and send the coins wherever you like.</p>
+python bitcard-recover.py                    # then paste each half when prompted (mainnet by default; add --testnet for a tb1 card)</pre>
+    <p>Take the printed <b>WIF</b> and use your wallet's <b>Sweep</b> feature (Electrum/Sparrow: "Sweep"), not "Import", so the coins move to a fresh key you control. A Bitcard key is a one-time bearer key: do not keep or reuse it.</p>
     <p><span class="step">3. From scratch (if even the script is gone).</span> Any programmer can reproduce the key from the algorithm below with any Bitcoin library. This is why the coins can never be locked away by us disappearing.</p>
   </div>
 

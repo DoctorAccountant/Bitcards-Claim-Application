@@ -41,7 +41,8 @@
   .ok{ color:var(--ok); font-weight:700; } .bad{ color:var(--bad); font-weight:700; }
   .back{ display:inline-block; color:var(--muted); font-size:14px; cursor:pointer; margin-bottom:6px; }
   .back:hover{ color:var(--ink); }
-  .hide{ display:none; }
+  .hide{ display:none!important; }
+  #confirmRow{ display:flex; gap:9px; align-items:flex-start; font-weight:500; font-size:14px; }
   a{ color:var(--brand); font-weight:700; }
   details{ margin-top:26px; } summary{ color:var(--muted); font-size:13px; cursor:pointer; }
   #buildhash{ font-size:11px; color:var(--muted); word-break:break-all; margin:8px 0; }
@@ -132,9 +133,11 @@
       <div id="destOut" class="out"></div>
       <button id="reviewBtn">Review before sending</button>
       <div id="claimOut" class="out"></div>
-      <label class="hide" id="confirmRow" style="display:flex;gap:9px;align-items:flex-start;font-weight:500;font-size:14px"><input type="checkbox" id="destConfirm" style="width:auto;margin-top:3px"> I checked the address above and it is correct.</label>
+      <label class="hide" id="confirmRow"><input type="checkbox" id="destConfirm" style="width:auto;margin-top:3px"> I checked the address above and it is correct.</label>
       <button id="bcastBtn" class="hide">Send my bitcoin</button>
       <div id="bcastOut" class="out"></div>
+      <button id="bumpBtn" class="ghost hide">Payment not showing up? Speed it up</button>
+      <div id="bumpOut" class="out"></div>
     </div>
   </div>
 
@@ -154,7 +157,8 @@
   <details>
     <summary>Is this app genuine? (optional check)</summary>
     <div class="note" style="margin-top:10px">This app runs entirely on your device and your words never leave it. To look up balances and send payments it talks to two public bitcoin servers (blockstream.info and mempool.space). They are read-only windows onto the bitcoin network: they never see your words, never hold your bitcoin, and cannot change anything. The app also requires them to agree with each other before it trusts what they report. And if they ever shut down, any bitcoin tool can take their place, because your bitcoin lives on the bitcoin network itself, not with them and not with us.</div>
-    <div class="note">Want proof you are running the real, unchanged app? Compare the fingerprint below with the official one published at bitcards.xyz. An exact match means this copy has not been tampered with. Most people can skip this.</div>
+    <div class="note">One honest privacy note: those two servers do see the card's bitcoin address and your device's internet (IP) address when you check a balance or send. Because the same card address is looked up when the card is funded and again when it is claimed, in principle a server could tell those two visits are related. They never see your words or your name. For most gifts this does not matter, but if you want more privacy, move the bitcoin onward from your own wallet afterward.</div>
+    <div class="note">Want proof you are running the real app? Two checks. (1) The fingerprint below is a hash of this app's program code; it should match the value published at bitcards.xyz. (2) That fingerprint covers the code, not the whole page. For the whole file, save this page and compare its SHA-256 against the published file hash (for example, Get-FileHash on Windows, or shasum -a 256). Most important of all: open the app from the official web address you trust, since a page served by someone else could look identical. Most people can skip all of this.</div>
     <div id="buildhash"></div>
     <div id="selftest"></div>
     <div id="status">starting...</div>

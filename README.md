@@ -21,12 +21,12 @@ Cards carry no issuer key and the app verifies no issuer signature (v0.4 removed
 
 ```
 sha256 of app/claim-app.html:
-d141f91b459bf51b1a89d86294b5e5e92166791e96eed10e417666c50035f1b2
+5fe13d290d410bd971d2a5d9c3ee32273044145f88e140f2afcdd5a3b8c11569
 ```
 
 PowerShell: `Get-FileHash app/claim-app.html` · Linux/macOS: `shasum -a 256 app/claim-app.html`
 
-The same file is deployed at https://bitcards.vercel.app/app.html and must hash identically. The app also displays a runtime fingerprint of its own inline script (open "Is this app genuine?" at the bottom of the page).
+The same file is deployed at https://bitcards.xyz/app.html and must hash identically. The app also displays a runtime fingerprint of its own inline script (open "Is this app genuine?" at the bottom of the page).
 
 ## Rebuild it yourself
 
@@ -35,7 +35,8 @@ cd build
 npm ci
 npx esbuild app-claim.js --bundle --format=iife --minify --charset=ascii --target=es2020 --outfile=app-claim.bundle.js
 node assemble.mjs template-claim.html app-claim.bundle.js claim-app.html
-node test-core.mjs   # must print CORE OK
+node test-core.mjs        # must print CORE OK
+node test-hardening.mjs   # must print HARDENING OK
 ```
 
 ## Recover funds without any Bitcard service

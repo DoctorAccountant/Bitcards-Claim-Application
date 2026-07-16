@@ -16,6 +16,8 @@ const tightened = template.replace("script-src 'unsafe-inline'", "script-src 'sh
 const html = tightened.replace('<!--APPSCRIPT-->', () => '<script id="appbundle">' + bundle + '</script>');
 fs.writeFileSync(out, html);
 
+// Historical tripwire: v0.2-v0.3 builds carried a DEMO maker signing key with this literal value. v0.4 removed the
+// maker key entirely, so this must NEVER appear in any bundle; the check below stays as a cheap regression guard.
 const MAKER_PRIV_HEX = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
 console.log('written:', out, '·', html.length, 'bytes');
 console.log('external <script src=>:', (html.match(/<script\s+src=/g) || []).length);

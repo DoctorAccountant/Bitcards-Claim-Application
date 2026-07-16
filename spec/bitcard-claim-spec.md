@@ -1,31 +1,31 @@
 # Bitcard Claim Specification
 
 **Version 0.4 — DRAFT (2026-07-01): the maker signature is REMOVED.**
-Bitcard is an **open, permissionless standard**: cards carry no issuer key, the QR payload is just `base64url(record)`, and anyone may build a compatible card or tool (like BIP39). Why it was dropped: the signature protected funds in **no** way (the 2-of-2 scheme does that), did not stop the counterfeit-app phishing path (the QR chooses the verifier), added a signing key that would have to stay secret for 100+ years — against the "runs without us" ethos — and gated "genuineness" in a way that fights the open design. Effects: **no maker key or ceremony anywhere**; the QR is **smaller** (v7 / 45 modules vs v9 / 53 → bigger, easier-to-scan modules); mainnet is now a pure network-config swap (`build/config.js`, flip `ACTIVE`). Anti-brand-impersonation, if ever wanted at retail, becomes a **serial-lookup registry**, not a crypto gate. The two-half key scheme, the record format (§4.1), the flows (§6), the sweep rules (§7), and recovery (§8) are unchanged. Sections below that describe a maker signature are historical (v0.2–v0.3).
+Bitcard is an **open, permissionless standard**: cards carry no issuer key, the QR payload is just `base64url(record)`, and anyone may build a compatible card or tool (like BIP39). Why it was dropped: the signature protected funds in **no** way (the 2-of-2 scheme does that), did not stop the counterfeit-app phishing path (the QR chooses the verifier), added a signing key that would have to stay secret for 100+ years — against the "runs without us" ethos — and gated "genuineness" in a way that fights the open design. Effects: **no maker key or ceremony anywhere**; the QR is **smaller** (v7 / 45 modules vs v9 / 53 → bigger, easier-to-scan modules); mainnet is now a pure network-config swap (`build/config.js`, flip `ACTIVE`). Anti-brand-impersonation, if ever wanted at retail, becomes a **serial-lookup registry**, not a crypto gate. The two-half key scheme, the record format (§4.1), the flows (§6), the sweep rules (§7), and recovery (§8) are unchanged. **AUTHORITATIVE ON-THE-WIRE FORMAT: §4.1 (the 41-byte record) and §4.3 (QR payload = base64url of that record, with nothing appended).** Any wording anywhere below — including §4.4, §6, and the §0/§0a changelogs — that mentions a maker signature, an Ed25519 key, `sig(64)`, a 105-byte payload, or the app "verifying" a card is superseded v0.2–v0.3 text kept only for history. A conformant parser reads exactly 41 bytes and expects no signature.
 
-**Version 0.3 — DRAFT, second-review revisions (2026-06-21).**
-Still draft. Signed-QR verification, CSP, the §7 multi-node sweep (with decoded destination confirmation and fee sanity bounds), and the best-effort claim-flow model are implemented in the reference app. Mainnet still waits on: content-addressing and final sign-off. (Maker/recipient tooling separation and the Part-1 ceremony tooling are now built — a public claim app with no maker key, an offline create-only maker tool, and a separate keyless QC tool that verifies each sealed card before it ships.)
+**Version 0.3 — HISTORICAL NOTE (superseded by v0.4 above; NON-NORMATIVE — do not implement from this paragraph).**
+Signed-QR verification *(removed in v0.4 — no signature exists)*, CSP, the §7 multi-node sweep (with decoded destination confirmation and fee sanity bounds), and the best-effort claim-flow model were implemented in the v0.3 reference app. (Maker/recipient tooling separation and the Part-1 ceremony tooling were built then too — a public claim app with no maker key, an offline create-only maker tool, and a separate keyless QC tool that verifies each sealed card before it ships.)
 
 This document defines exactly how a Bitcard splits, combines, encodes, authenticates, and claims a Bitcoin key. It is the open standard that lets any compatible tool recover a card's funds even if every Bitcard service disappears.
 
-## 0a. Changes in v0.3 (second-review response)
+## 0a. Changes in v0.3 (second-review response) — *HISTORICAL, NON-NORMATIVE. Do not implement anything in this section. Every signature/Ed25519 item was REMOVED in v0.4; the authoritative format is §4.1 + §4.3 (41-byte record, no signature).*
 
-- **Maker signature is now Ed25519** (was BIP340), for clean separation from Bitcoin keys. Exact scheme + domain separation frozen in §4.
-- **Card record + signature format fully frozen** (§4): fixed-width fields, explicit enum byte values, 4-byte big-endian serial, `app_id` is a **compiled app constant, NOT in the QR** (it is folded into the signed message). Example QR reconciled.
-- **P2WPKH confirmed for the first mainnet batch**; Taproot deferred to a later version (§10).
-- **Part-1 destruction is now a defined manufacturing ceremony** (§2a): read-back the sealed words, sign that exact record, witnessed destruction, batch audit.
-- **App must display its own runtime build hash** (§5.7), verifiable against the published bundle hash.
-- **Reproducibility inputs** now include `package-lock.json` and `assemble.mjs` (§8).
-- Implementation status (reference app): signed-QR verify + forged-card rejection, CSP, build-hash display, best-effort secret hygiene, and the §7 multi-node sweep (agreement-gated UTXO read, fee estimation with a sat/vB sanity ceiling, decoded destination confirmation, broadcast-to-all) are implemented. The claim-flow security model is **decided** (best-effort hygiene; §10). Maker/recipient tooling separation is now **implemented** (separate public claim app with no maker key + offline maker tool; §10).
+- *(removed in v0.4)* Maker signature was changed to Ed25519 (was BIP340), for clean separation from Bitcoin keys. **No signature exists in v0.4.**
+- *(partially superseded)* Card record frozen (§4): fixed-width fields, explicit enum byte values, 4-byte big-endian serial. The record layout survives in v0.4; the signature and `app_id` parts were removed.
+- **P2WPKH confirmed for the first mainnet batch**; Taproot deferred to a later version (§10). *(still current)*
+- **Part-1 destruction is a defined manufacturing ceremony** (§2a): read-back the sealed words against the record's `P1` (v0.4: build the record, nothing is signed), witnessed destruction, batch audit. *(still current, minus signing)*
+- **App must display its own runtime build hash** (§5.7), verifiable against the published bundle hash. *(still current)*
+- **Reproducibility inputs** now include `package-lock.json` and `assemble.mjs` (§8). *(still current)*
+- *(historical implementation status)* The v0.3 reference app implemented signed-QR verify *(removed in v0.4)*, CSP, build-hash display, best-effort secret hygiene, and the §7 multi-node sweep. Maker/recipient tooling separation implemented (§10). *(all still current except the signature)*
 
 ---
 
-## 0. Changes in v0.2 (response to review)
+## 0. Changes in v0.2 (response to review) — *HISTORICAL, NON-NORMATIVE. Signature language below is v0.2-era; the signature was removed in v0.4.*
 
 | # | Finding | Resolution in v0.2 |
 |---|---|---|
 | P0 | Offline mode doesn't protect Part 2 from a malicious/changed app | New **§5 App authenticity & integrity** — self-contained, reproducibly built, pinned, no external scripts/analytics/service-worker, no persistence, best-effort secret hygiene (DOM clear + key zeroize), user-verifiable hash. Offline is necessary, not sufficient; the real anti-tamper control is the pinned/audited hash, not the hygiene. |
-| P0 | QR `<host>` is a phishing/counterfeit path | **§4 rewritten** — the QR carries a **maker-signed** record; delivery is via a **content-addressed** app URL (Option A, §4.4), never a mutable domain chosen by the card. The trust anchor is the **hash-verified app** (fetched-file SHA-256 + self-displayed build hash); it rejects unsigned/forged cards. |
+| P0 | QR `<host>` is a phishing/counterfeit path | **§4 rewritten** — *(v0.2 answer; the signature was removed in v0.4)* the QR carried a maker-signed record and a content-addressed app URL. **v0.4 answer:** the QR carries the unsigned 41-byte record (§4.3); the trust anchors are the **hash-verified app** (published SHA-256 + self-displayed build hash, §4.4) and **tamper-evident physical packaging**. |
 | P1 | Balance check dangerous if maker retains Part 1 | **§2/§9** now **require the maker to destroy Part 1** after manufacture. **§6.2** derives the address offline, zeroizes secrets, then queries — or uses the non-secret funding address as a view handle. |
 | P1 | "Recipient is the only party" overstated | **§9** states the collusion/breach limit explicitly **and** removes the standing risk by mandating Part 1 deletion. |
 | P1 | Recovery format not frozen | **§3/§8** freeze version, network, script type, KDF, BIP39 language + normalization, rejection rules; **test vectors** are a release gate. |
@@ -55,14 +55,14 @@ A Bitcard carries the keys to bitcoin at an ordinary Bitcoin address. This spec 
 - The **recipient** ends up holding both: Part 1 by peeling the maker's seal, Part 2 from the written words.
 
 ### 2a. Part-1 manufacturing ceremony (mandatory)
-Because Part 1 is destroyed, a mismatch between the sealed words and the signed `P1` would lock funds forever. Each card MUST go through:
+Because Part 1 is destroyed, a mismatch between the sealed words and the `P1` in the card's record would lock funds forever. Each card MUST go through:
 1. Generate Part 1 on the air-gapped machine; derive `P1` from the **exact words that will be sealed**.
-2. Sign the card record (§4) over **that** `P1`.
-3. **Read-back / scan the printed-and-sealed words** and re-derive `P1`; confirm it equals the signed `P1` **before** the seal is closed and before the maker copy is destroyed.
-4. Handle printer memory and waste prints securely (no Part-1 residue leaves the room).
-5. **Witnessed destruction** of the maker's Part-1 copy; **batch audit** log (serials, signed records, destruction sign-off) retaining only public data.
+2. Build the card record (§4) with **that** `P1` (v0.4: the record is not signed).
+3. **Read-back / scan the printed-and-sealed words** and re-derive `P1`; confirm it equals the record's `P1` **before** the seal is closed and before the maker copy is destroyed.
+4. Handle printer memory and waste prints securely (no Part-1 residue leaves the room). **Never write Part-1 words to a cloud-synced or version-tracked location** (OneDrive/Dropbox/git): deleting such a file does not remove its retained history. Use an ephemeral, non-synced path and destroy it after the print artifacts are made.
+5. **Witnessed destruction** of the maker's Part-1 copy; **batch audit** log (serials, records, destruction sign-off) retaining only public data.
 
-**Tooling (implemented).** A dedicated **keyless QC tool** (`print/qc-tool.html`) performs step 3 + the audit of step 5. It imports only public operations from `core.js` — **no maker private key, no card creation** — so it runs on a separate station from the maker tool. The operator records operator/witness IDs, re-types the words read off the **physical** sealed card, and scans its QR; the tool re-derives `P1`, verifies the QR's maker signature, and confirms they match (MATCH = recoverable + authentic; MISMATCH = do not ship). After a MATCH the operator destroys the maker copy and records a **destruction sign-off**. It maintains a **durable, exportable batch audit** (JSON): per card — serial, full signed record + its SHA-256, public key, PASS/FAIL, timestamp, operator, witness, destruction sign-off; the read-back words are never recorded and are cleared after **every** check (success or error). (The maker tool, `maker-tool.html`, is create-only and holds the signing key; QC is intentionally separate and keyless.)
+**Tooling (implemented).** A dedicated **keyless QC tool** (`print/qc-tool.html`) performs step 3 + the audit of step 5. It imports only public operations from `core.js` — **no card creation** — so it runs on a separate station from the maker tool. The operator records operator/witness IDs, re-types the words read off the **physical** sealed card, and scans its QR; the tool re-derives `P1` and confirms it equals the `P1` in the QR's record (MATCH = recoverable; MISMATCH = do not ship). After a MATCH the operator destroys the maker copy and records a **destruction sign-off**. It maintains a **durable, exportable batch audit** (JSON): per card — serial, full record + its SHA-256, public key, PASS/FAIL, timestamp, operator, witness, destruction sign-off; the read-back words are never recorded and are cleared after **every** check (success or error). (The maker tool, `maker-tool.html`, is create-only; both tools are keyless in v0.4.)
 
 **Batch acceptance (SOP).** A batch may ship only if, across its audit export: (1) there are **no FAIL cards**, (2) **no PASS card is awaiting destruction sign-off**, and (3) **no card has an unset operator or witness ID**. Any FAIL card is destroyed, not shipped. The exported audit carries exactly these fields, so acceptance is checkable from the record.
 
@@ -97,7 +97,7 @@ Because Part 1 is destroyed, a mismatch between the sealed words and the signed 
 
 ## 4. Card authentication & QR encoding
 
-The QR may direct the user only to a **content-addressed**, **hash-verified** app (§4.4), and the card record is **maker-signed**; the verified app (confirmed by fetched-file SHA-256 + self-displayed build hash) is the trust anchor and rejects unsigned/forged cards. A card can never point at arbitrary mutable hosting.
+The QR carries only the 41-byte data record (§4.1, §4.3) — **no signature.** It may direct the user to a **hash-verified** app (§4.4); the verified app (confirmed by fetched-file SHA-256 + self-displayed build hash) together with the **tamper-evident physical card** are the trust anchors. The record itself is not authenticated by any issuer key (see §4.2); genuineness of a *branded* card is a physical/packaging + optional serial-registry concern, not a crypto gate.
 
 ### 4.1 Card record (frozen — 41 bytes)
 | Offset | Len | Field | Value |
@@ -109,6 +109,8 @@ The QR may direct the user only to a **content-addressed**, **hash-verified** ap
 | 4 | 33 | P1 | compressed secp256k1 public key of the maker's half |
 | 37 | 4 | serial | `uint32`, big-endian |
 
+**Serials are display/inventory only.** A serial is not authenticated (anyone may mint a card with any serial), so no tool may use it for authorization, recall, or any trust decision. Brand-level recall/lookup, if ever needed, requires a separate signed registry keyed by serial; until that exists, treat serials as cosmetic.
+
 ### 4.2 Card authenticity — REMOVED in v0.4
 Earlier drafts (v0.2–v0.3) signed the record with an Ed25519 maker key. **v0.4 removes this entirely.** Cards carry no signature and the app verifies no issuer key. This does not affect fund security (the 2-of-2 scheme, §3, is untouched) or the QC pairing check (§2a re-derives `P1` from the sealed words directly). Brand-authenticity (distinguishing a genuine-brand card from a counterfeit sold under the name) is out of scope of the crypto; if wanted at retail it is a serial-lookup registry + physical anti-counterfeit, not a signature.
 
@@ -118,16 +120,18 @@ record(41)  ->  base64url_nopad   // 41 bytes -> ~55 chars
 ```
 The QR payload is just the base64url of the 41-byte record — **no signature appended.** The app decodes the record, validates the enums (version / network / scripttype / kdf — rejecting unknown values and any network mismatch) and that `P1` is a valid secp256k1 point, **before any key material is generated.** Nothing in the QR is secret; it does not reveal the funding address (that also needs Part 2).
 
-### 4.4 QR delivery — ADOPTED: Option A (content-addressed scan-and-go)
+### 4.4 QR delivery — domain pointer, permanence via published hash + mirrors
 The QR encodes:
 ```
-<APP_URL> + "#" + base64url_nopad( record(41) || sig(64) )
+<APP_URL> + "#" + base64url_nopad( record(41) )
 ```
-where `APP_URL` is the **content-addressed** location of the pinned official app (an IPFS CID gateway or Arweave tx URL). One scan opens the verified app with the card record in the URL **fragment**; the app reads `location.hash`, prepends `bitcard:`, and verifies as in §4.3.
+where `APP_URL` is the official app address baked into the QR. For retail usability this is a short **domain** (currently `https://bitcards.xyz/app.html`), not a content-addressed gateway URL. One scan opens the app with the card record in the URL **fragment**; the app reads `location.hash`, prepends `bitcard:`, and validates as in §4.3.
+
+The domain is a **convenience pointer, not the trust anchor.** The exact app file has a **published SHA-256**, the app self-displays its own code fingerprint (§5.7), and the byte-identical file is mirrored on GitHub, archive.org, and Arweave (content-addressed). If the domain ever served different bytes or disappeared, the app stays verifiable and the funds stay recoverable from those copies plus the two-half words. In short: **domain for convenience, published hash + redundant copies for permanence, the words for the ultimate guarantee.** A domain failure costs convenience, never funds.
 
 Why this is acceptable (and how it differs from the original "host phishing" path):
 - **Content-addressing prevents silent content substitution.** The identifier (IPFS CID / Arweave tx) is immutable and resolves from *any* gateway, so no single domain is a chokepoint and a gateway cannot serve different bytes for the same id without it being detectable. (A gateway URL still contains a domain for transport — the claim is *not* "no domain", it is "no undetectable substitution".)
-- **Final acceptance rests on verification, not on trusting the host.** Before any address is printed, the published copy is confirmed by **fetched-file SHA-256** and the app's **self-displayed build hash**; both must equal the audited values. That, plus the **maker signature** on the record, is the trust anchor — not arweave.net or any gateway.
+- **Final acceptance rests on verification, not on trusting the host.** Before any address is printed, the published copy is confirmed by **fetched-file SHA-256** and the app's **self-displayed build hash**; both must equal the audited values. That hash-verified app, plus **tamper-evident packaging** on the physical card, is the trust anchor — not arweave.net or any gateway.
 - The fragment (`#…`) is **never sent to any server**, so no host learns which card was scanned.
 - Residual: a fully counterfeit card could embed a QR to an attacker's app — unchanged from the data-only design in practice (a fake card can also print fake instructions). Mitigated by trusted distribution, tamper-evident packaging, the **published official `APP_URL` + hash**, and the app's self-displayed build hash.
 
@@ -143,7 +147,7 @@ Airplane mode alone does not protect Part 2 — a tampered app could store it an
 2. **Reproducibly built and content-addressed.** Published source → reproducible build → hash → pinned to IPFS/Arweave. The app displays its own build hash; users can verify it matches the published, audited hash.
 3. **No persistence of secrets.** Secrets live only in memory, zeroized after use; no `localStorage`, `IndexedDB`, cookies, or cache of secret material. Ever.
 4. **Secret hygiene (best-effort in v1).** Secret inputs are cleared from the DOM immediately, before any network call, and private-key bytes are zeroized after signing. **Honest limitation:** in the single-page claim flow the reconstructed key remains in memory across the UTXO-fetch and broadcast network calls, so this is best-effort hygiene, *not* a hard "no network while secrets present" guarantee. The control against a tampered build that would abuse that window is hash-pinning + audit (items 1–2), not this hygiene. **Decided for v1: best-effort hygiene** — the recipient enters secrets once; the integrity controls (items 1–2) are what protect against a hostile build. A strict offline/online split that removes secrets from memory before any network call remains available as **optional advanced hardening** but is **not required for v1** (§10).
-5. **Open-source and auditable**, with the maker public key (§4) compiled in.
+5. **Open-source and auditable** (v0.4: no issuer key of any kind is compiled in).
 6. **Offline-capable / savable.** After first load there is no host dependency; the app runs from a saved copy.
 7. **Displays its own runtime build hash.** On load the app SHA-256-hashes its own inline script and shows it, so a user can compare it to the published bundle hash. (Self-hashing, not a static label.)
 
@@ -154,7 +158,7 @@ Offline is *necessary but not sufficient*; (1)–(5) and (7) are what actually l
 ## 6. Flows
 
 ### 6.1 Setup & load (buyer)
-1. Open the **verified official app**; scan the card; the app **verifies the maker signature** and reads `P1`, `network`, `serial`.
+1. Open the **verified official app**; scan the card; the app validates the record structure (enums + `P1` is a valid curve point) and reads `P1`, `network`, `serial`. (There is no issuer signature to verify; see §4.2.)
 2. App enters secret state (no network), buyer adds entropy.
 3. App generates Part 2 (12 words) → `d2` → `P2`; computes funding address `= P2WPKH(P1 + P2)`.
 4. App shows the 12 words; buyer **writes them on the card**.
@@ -218,13 +222,13 @@ With only the card and this spec, anyone can recover the funds offline:
 
 ## 10. Status & remaining items before mainnet
 
-**Resolved this round:** script type = **P2WPKH** for the first batch (Taproot later); maker signature = **Ed25519** (§4); card record + signature format **frozen** (§4); Part-1 destruction **ceremony defined** (§2a); **claim-flow security model = best-effort hygiene** (one-time secret entry; the anti-tamper control is hash-pinning + audit per §5, not memory timing) — the strict offline/online split is deferred to an optional advanced mode.
+**Resolved in v0.3 (historical):** script type = **P2WPKH** for the first batch (Taproot later) *(still current)*; maker signature = Ed25519 *(REMOVED in v0.4 — no signature exists)*; card record **frozen** (§4) *(the record survives; the signature part was removed)*; Part-1 destruction **ceremony defined** (§2a) *(still current, minus signing)*; **claim-flow security model = best-effort hygiene** (one-time secret entry; the anti-tamper control is hash-pinning + audit per §5, not memory timing) *(still current)* — the strict offline/online split is deferred to an optional advanced mode.
 
-**Implemented in the reference app:** signed-QR verification + forged-card rejection, CSP, runtime build-hash self-display, best-effort secret hygiene (immediate DOM clear + key-byte zeroize), and the **§7 multi-node sweep** — UTXO read requiring all nodes to respond and agree on full spend-critical data (txid, vout, value, confirmed status) before signing, network fee estimation with a **sat/vB sanity ceiling**, fee cap + dust refusal + RBF, **decoded destination confirmation** (the recipient confirms the address decoded from the signed tx, gated by a confirm box, before broadcast), and broadcast posted to all nodes. Validated on testnet.
+**Implemented in the reference app** *(v0.3 status; in v0.4 "signed-QR verification" became structural record validation — no signature)*: card validation + malformed-card rejection, CSP, runtime build-hash self-display, best-effort secret hygiene (immediate DOM clear + key-byte zeroize), and the **§7 multi-node sweep** — UTXO read requiring all nodes to respond and agree on full spend-critical data (txid, vout, value, confirmed status) before signing, network fee estimation with a **sat/vB sanity ceiling**, fee cap + dust refusal + RBF, **decoded destination confirmation** (the recipient confirms the address decoded from the signed tx, gated by a confirm box, before broadcast), and broadcast posted to all nodes. Validated on testnet, then proven end-to-end on mainnet (2026-07-15).
 
-**Maker/recipient tooling separation — IMPLEMENTED (hard gate closed).** The build is now split from a shared public-only `core.js` into two artifacts: a **public claim app** (`print/claim-app.html`) that contains **no maker private key and no card-creation** (verified: the maker-private-key literal is absent from the bundle), and a separate **offline maker tool** (`print/maker-tool.html`) that holds the signing key, makes no network calls, and is not for distribution. Cross-verified end-to-end: a card created by the maker tool verifies in the claim app; both self-tests pass.
+**Maker/recipient tooling separation — IMPLEMENTED.** The build is split from a shared public-only `core.js` into separate artifacts: a **public claim app** (`print/claim-app.html`) that contains **no card-creation**, and a separate **offline maker tool** (`print/maker-tool.html`) that makes no network calls and is not for distribution. *(v0.4: both tools are keyless — the maker signing key this paragraph once described no longer exists.)* Cross-verified end-to-end: a card created by the maker tool loads in the claim app; both self-tests pass.
 
-**Part-1 ceremony tooling — IMPLEMENTED (§2a).** A dedicated **keyless** QC tool (`print/qc-tool.html`, no maker private key) verifies each sealed card (re-derive `P1` from the read-back words, verify the QR signature, confirm match), records a destruction sign-off after a MATCH, and keeps a durable exportable batch audit (serial, signed record + SHA-256, PASS/FAIL, timestamp, operator/witness, destruction). Read-back words clear on every path.
+**Part-1 ceremony tooling — IMPLEMENTED (§2a).** A dedicated **keyless** QC tool (`print/qc-tool.html`, no maker private key) verifies each sealed card (re-derive `P1` from the read-back words and confirm it equals the `P1` in the card's QR record), records a destruction sign-off after a MATCH, and keeps a durable exportable batch audit (serial, record + SHA-256, PASS/FAIL, timestamp, operator/witness, destruction). Read-back words clear on every path.
 
 **Independent audit (2026-06-28) — testnet package PASSED on substance, verdict "No" only because it is the testnet/demo build.** Confirmed sound: crypto design + signed-record verification, byte-for-byte reproducible build, no localStorage/cookies/service-worker/external scripts, claim app free of the maker private key, maker/QC bundles free of network refs, vectors reproduce + reject tampering. The "No" reduces to the known testnet→mainnet gate plus a punch-list, below.
 

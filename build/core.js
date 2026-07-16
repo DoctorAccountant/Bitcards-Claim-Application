@@ -1,5 +1,9 @@
-// Bitcard shared core (spec v0.3). PUBLIC material only — this module contains NO maker private key.
-// Imported by both the public claim app and the internal maker tool.
+// Bitcard shared core (spec v0.4 — open standard: cards carry NO issuer signature and no maker key exists anywhere).
+// PUBLIC material only. Imported by the public claim app and the internal maker/QC tools.
+// Review map: network trust rules live here (getUtxos requires ALL nodes to agree; broadcastTx requires the node to
+// echo OUR locally-computed txid and a NON-accepting host to observe the tx; feeRate takes the LOWEST node estimate).
+// The key scheme (§3) and record format (§4) are at the bottom. Nothing in this file touches secret words directly
+// except halfScalar(), which converts 12 words to a scalar and is called by the apps.
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
 import { hmac } from '@noble/hashes/hmac';
 import { sha512 } from '@noble/hashes/sha512';
@@ -25,25 +29,80 @@ export const log = (el, s, cls) => { const e = $(el); if(!e) return; e.textConte
 
 // ---- network helpers (claim app only; the maker tool imports none of these) ----
 export const NODES = NET.nodes;
-export async function fetchJSON(base, path){ const r = await fetch(base+path); if(!r.ok) throw new Error('http '+r.status); return r.json(); }
-export async function getUtxos(addr){ // §7: require ALL nodes to respond AND agree on spend-critical data before signing
+export const FETCH_TIMEOUT = 15000; // ms; a hung node must not freeze the app forever (§9)
+export async function fetchWithTimeout(url, opts){
+  const ac = new AbortController();
+  const t = setTimeout(()=>ac.abort(), FETCH_TIMEOUT);
+  try{ return await fetch(url, Object.assign({}, opts, { signal: ac.signal })); }
+  finally{ clearTimeout(t); }
+}
+export const isTxid = s => typeof s==='string' && /^[0-9a-fA-F]{64}$/.test(s.trim());
+export async function fetchJSON(base, path){ const r = await fetchWithTimeout(base+path); if(!r.ok) throw new Error('http '+r.status); return r.json(); }
+export const MAX_UTXOS = 500; // sanity bound on inputs a card can hold (also caps tx size / fee)
+export function validateUtxos(arr){ // §7: never trust node JSON shape; reject anything that could poison the tx build
+  if(!Array.isArray(arr)) throw new Error('node returned a non-array UTXO set — refusing to sign');
+  if(arr.length > MAX_UTXOS) throw new Error('address has too many inputs ('+arr.length+') — refusing to sign');
+  const seen = new Set();
+  for(const u of arr){
+    if(!u || typeof u!=='object') throw new Error('malformed UTXO entry — refusing to sign');
+    if(!isTxid(u.txid)) throw new Error('malformed UTXO txid — refusing to sign');
+    if(!Number.isInteger(u.vout) || u.vout < 0 || u.vout > 0xffffffff) throw new Error('malformed UTXO vout — refusing to sign');
+    if(!Number.isSafeInteger(u.value) || u.value < 0) throw new Error('malformed UTXO value — refusing to sign');
+    const op = u.txid+':'+u.vout; if(seen.has(op)) throw new Error('duplicate UTXO outpoint — refusing to sign'); seen.add(op);
+  }
+  return arr;
+}
+export async function getUtxos(addr){ // §7: require ALL nodes to respond, pass schema validation, AND agree before signing
   const res = await Promise.allSettled(NODES.map(b=>fetchJSON(b,'/address/'+addr+'/utxo')));
   const ok = res.filter(r=>r.status==='fulfilled').map(r=>r.value);
   if(ok.length < NODES.length) throw new Error('only '+ok.length+'/'+NODES.length+' nodes responded — refusing to sign; §7 requires agreement of all nodes');
+  ok.forEach(validateUtxos);
   const key = u => u.map(x=>x.txid+':'+x.vout+':'+x.value+':'+(x.status&&x.status.confirmed?1:0)).sort().join(',');
   for(let i=1;i<ok.length;i++){ if(key(ok[i])!==key(ok[0])) throw new Error('nodes disagree on UTXO set/values — refusing to sign (§7)'); }
   return { utxos: ok[0], agreed: ok.length };
 }
-// Fee estimate from the first responding node (NOT node-agreement — agreement is required for UTXOs, not fees). Bounded by MAX_FEERATE + 50% cap + dust refusal.
-export async function feeRate(){ for(const b of NODES){ try{ const f=await fetchJSON(b,'/fee-estimates'); return Math.max(1, Math.ceil(f['2']||f['3']||f['6']||2)); }catch(e){} } return 2; }
+// Fee estimate from ALL nodes; use the LOWEST sane answer. A lying node can then only slow the payment (the RBF
+// speed-up recovers that), never inflate the fee toward the 50% cap. Bounded by MAX_FEERATE + 50% cap + dust refusal.
+export async function feeRate(){
+  const res = await Promise.allSettled(NODES.map(b=>fetchJSON(b,'/fee-estimates')));
+  const rates = res.filter(r=>r.status==='fulfilled')
+    .map(r=>{ const f=r.value||{}; return Math.ceil(f['2']||f['3']||f['6']||2); })
+    .filter(x=>Number.isFinite(x) && x>=1);
+  return rates.length ? Math.max(1, Math.min(...rates)) : 2;
+}
 export function estVbytes(nIn){ return Math.ceil(10.5 + nIn*68 + 31); } // P2WPKH sweep, 1 output
 export const MAX_FEERATE = 100; // sat/vB sanity ceiling (§7 upper bound)
-export async function broadcastTx(raw){ // §7: post to ALL nodes; succeed if any accepts; report each
-  const res = await Promise.allSettled(NODES.map(async b => { const r = await fetch(b+'/tx',{method:'POST',body:raw}); const t = await r.text(); if(!r.ok) throw new Error(t); return t; }));
+export async function broadcastTx(raw, expectedTxid){ // §7: post to ALL nodes; a node "accepts" only if it echoes the txid WE computed (a lying node cannot fake success)
+  const res = await Promise.allSettled(NODES.map(async b => {
+    const r = await fetchWithTimeout(b+'/tx',{method:'POST',body:raw});
+    const t = ((await r.text())||'').trim();
+    if(!r.ok) throw new Error(t || ('http '+r.status));
+    if(!isTxid(t)) throw new Error('unexpected response (not a txid): '+t.slice(0,80));
+    if(expectedTxid && t.toLowerCase() !== String(expectedTxid).toLowerCase()) throw new Error('node returned a different txid than the transaction we signed');
+    return t;
+  }));
   const accepted = [], errs = [];
   res.forEach((r,i)=>{ const host = NODES[i].split('//')[1]; if(r.status==='fulfilled'){ accepted.push({host, txid:r.value}); } else { errs.push(host+': '+(r.reason&&r.reason.message||r.reason)); } });
   if(!accepted.length) throw new Error('all nodes rejected: '+errs.join(' | '));
-  return { txid: accepted[0].txid, acceptedHosts: accepted.map(a=>a.host), errs };
+  const txid = accepted[0].txid;
+  const acceptedHosts = accepted.map(a=>a.host);
+  // Independent observation, tracked BY HOST (§7): a lying acceptor can echo the right txid and then 200 its own
+  // status endpoint, so the acceptor's word is never enough. "Confirmed" requires ALL nodes to have accepted, or a
+  // host that did NOT accept the broadcast to now see the tx. One retry allows for propagation between nodes.
+  const checkObserved = async () => {
+    const seen = [];
+    await Promise.allSettled(NODES.map(async b => { try{ const r = await fetchWithTimeout(b+'/tx/'+txid+'/status'); if(r.ok) seen.push(b.split('//')[1]); }catch(e){} }));
+    return seen;
+  };
+  let observedHosts = await checkObserved();
+  const indep = hosts => acceptedHosts.length >= NODES.length || hosts.some(h => !acceptedHosts.includes(h));
+  let independent = indep(observedHosts);
+  if(!independent){
+    await new Promise(r=>setTimeout(r, 4000));
+    observedHosts = await checkObserved();
+    independent = indep(observedHosts);
+  }
+  return { txid, acceptedHosts, observedHosts, independent, nodeCount: NODES.length, errs };
 }
 
 // ---- byte helpers ----
