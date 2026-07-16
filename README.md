@@ -1,4 +1,4 @@
-# Bitcard — open standard + claim app (v0.4)
+# Bitcard � open standard + claim app (v0.4)
 
 A physical, non-custodial bitcoin gift card. The card carries a key split into two halves of 12 words: one sealed under a scratch panel at manufacture, one written by the buyer at setup. Only someone holding both halves can spend. The issuer never holds a complete key and never touches funds. This repository exists so that **the bitcoin on any card is recoverable forever from the two word-halves, even if every Bitcard service disappears.** You recover with the open spec or the small included tool, and the recovered key then imports into any standard wallet.
 
@@ -30,9 +30,9 @@ This is an **additive two-part key** (the two halves add to one ordinary key), n
 
 ```
 sha256 of app/claim-app.html:
-0df04a7a346d51ade1c409c81f4c34a98d8cc1025e7ec20ac03ab04bb0b9c934
+c615d85dbc67b3d089a0590d4d215646eaee1f3b2296e9487b3239b8c9f25615
 sha256 of app/offline.html:
-23291f416cd5bba8b341c49975dcbf8bb146e24bf0f74722275abf60aa4164a0
+2302599dea80726f63ab10d09e65d64ef1b283d2db42d73096a9bbde431fc4a5
 ```
 
 PowerShell: `Get-FileHash app/claim-app.html` · Linux/macOS: `shasum -a 256 app/claim-app.html`

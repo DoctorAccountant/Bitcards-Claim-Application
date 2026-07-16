@@ -48,7 +48,16 @@ let lastRate = null;   // sat/vB used for the last sweep, so "speed up" can bid 
 let lastUtxos = null;  // the exact inputs the reviewed sweep spends; an RBF bump must re-spend THESE (mempool marks them spent)
 let busy = false;      // single in-flight guard: blocks double-clicks and concurrent sign/broadcast
 
-function loadCard(){ return parseAndVerifyCard($('cardUri').value); }
+// Accept whatever a person is likely to paste: the bare code, a "bitcard:" code, or the WHOLE link
+// their camera app showed (".../app.html#AQAB..."). We normalize at parse time, never rewrite their typing.
+function normCardInput(v){
+  v = (v||'').trim();
+  const i = v.lastIndexOf('#');
+  if(i >= 0) v = v.slice(i+1).trim();
+  if(v && !v.startsWith('bitcard:')) v = 'bitcard:' + v;
+  return v;
+}
+function loadCard(){ return parseAndVerifyCard(normCardInput($('cardUri').value)); }
 function sats(n){ return n.toLocaleString('en-US'); }
 function btcStr(n){ return (n/1e8).toFixed(8); }
 // numbered two-column layout (1-6 left, 7-12 right) matching the write lines printed on the card
@@ -161,8 +170,8 @@ function init(){
   function refreshCardStatus(){
     const val = $('cardUri').value.trim();
     if(!val){ $('cardStatus').textContent = ''; return; }
-    try{ const c = parseAndVerifyCard(val); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; }
-    catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Scan the QR on the back of the card, or paste the whole code.'; }
+    try{ const c = loadCard(); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; }
+    catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Scan the QR on the back of the card with your phone camera, or paste the whole code or link here.'; }
   }
   // audit: the card box changing (paste, or a scan into the same open tab) must wipe ALL flow state, so card A can
   // never be funded/spent with card B in hand. A fresh page load already starts clean; this covers same-session swaps.

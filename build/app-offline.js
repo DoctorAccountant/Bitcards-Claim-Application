@@ -19,6 +19,15 @@ function checkWords(raw, boxName){
 // Remove any produced key from the DOM. Called before every attempt, on error, on card/word change, on Done, on pagehide.
 function clearResult(){ $('outAddr').textContent = ''; $('outWif').textContent = ''; $('resultBox').classList.add('hide'); }
 
+// Accept the bare code, a "bitcard:" code, or the whole link from scanning the QR (".../app.html#AQAB...").
+function normCardInput(v){
+  v = (v||'').trim();
+  const i = v.lastIndexOf('#');
+  if(i >= 0) v = v.slice(i+1).trim();
+  if(v && !v.startsWith('bitcard:')) v = 'bitcard:' + v;
+  return v;
+}
+
 function init(){
   const isMain = NET.hrp === 'bc';
   document.title = 'Bitcard offline key tool (' + NET.label + ')';
@@ -39,8 +48,8 @@ function init(){
   function refreshCardStatus(){
     const val = $('cardUri').value.trim();
     if(!val){ $('cardStatus').textContent = ''; return; }
-    try{ const c = parseAndVerifyCard(val); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; }
-    catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Scan the QR on the back of the card, or paste the whole code.'; }
+    try{ const c = parseAndVerifyCard(normCardInput(val)); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; }
+    catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Paste the whole card code, or the whole link from scanning the QR.'; }
   }
   $('cardUri').addEventListener('input', ()=>{ refreshCardStatus(); clearResult(); });   // a new card must not leave the old key on screen
   refreshCardStatus();
@@ -51,8 +60,8 @@ function init(){
   $('revealBtn').onclick = ()=>{
     clearResult(); $('keyOut').textContent = '';   // never let a previous key survive a new or failed attempt
     let card;
-    try{ card = parseAndVerifyCard($('cardUri').value); }
-    catch(e){ log('keyOut','First scan or paste the card code (the QR on the back of the card).','bad'); return; }
+    try{ card = parseAndVerifyCard(normCardInput($('cardUri').value)); }
+    catch(e){ log('keyOut','First paste the card code, or the whole link from scanning the QR on the back of the card.','bad'); return; }
     const r2 = checkWords($('p2').value, 'handwritten box'); if(r2.err){ log('keyOut', r2.err, 'bad'); return; }
     const r1 = checkWords($('p1').value, 'scratch-panel box'); if(r1.err){ log('keyOut', r1.err, 'bad'); return; }
     // pairing: the scratch-panel words MUST reproduce this card's public key, or it is the wrong card / a typo
