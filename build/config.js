@@ -6,17 +6,11 @@
 // going mainnet is now purely a network swap: set ACTIVE='mainnet'. No production key, no ceremony.
 export const ACTIVE = 'mainnet';   // 'testnet' | 'mainnet'
 
+// Crypto/display params only (NO server URLs). The node endpoints live in the separate, side-effect-free
+// endpoints.js so the OFFLINE tool (which calls no network functions) tree-shakes every node URL out of its bundle.
 const NETS = {
-  testnet: {
-    networkByte: 0x01, hrp: 'tb', label: 'TESTNET',
-    nodes: ['https://blockstream.info/testnet/api', 'https://mempool.space/testnet/api'],
-    txExplorer: 'https://blockstream.info/testnet/tx/',
-  },
-  mainnet: {
-    networkByte: 0x00, hrp: 'bc', label: 'MAINNET',
-    nodes: ['https://blockstream.info/api', 'https://mempool.space/api'],
-    txExplorer: 'https://blockstream.info/tx/',
-  },
+  testnet: { networkByte: 0x01, hrp: 'tb', label: 'TESTNET' },
+  mainnet: { networkByte: 0x00, hrp: 'bc', label: 'MAINNET' },
 };
 
 export const NET = NETS[ACTIVE];

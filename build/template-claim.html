@@ -107,6 +107,7 @@
     <div class="card">
       <h2>Claim your bitcoin</h2>
       <p class="lead">Let's see what's on this card, then move it into a wallet of your own, one step at a time. Nothing moves until you tick a box and confirm at the final step, and you can start over at any point before that.</p>
+      <div class="note">This page is quick and fine for a normal gift. If this card holds a larger amount, or you would rather not rely on any website, there is a safer <b>offline</b> option: <b>bitcards.xyz/offline.html</b> (save it and open it on a device with no internet; it hands your key to a trusted wallet app to do the sending).</div>
     </div>
     <div class="card">
       <div class="step">Step 1</div>
@@ -158,6 +159,7 @@
     <summary>Is this app genuine? (optional check)</summary>
     <div class="note" style="margin-top:10px">This app runs entirely on your device and your words never leave it. To look up balances and send payments it talks to two public bitcoin servers (blockstream.info and mempool.space). They are read-only windows onto the bitcoin network: they never see your words, never hold your bitcoin, and cannot change anything. The app also requires them to agree with each other before it trusts what they report. And if they ever shut down, any bitcoin tool can take their place, because your bitcoin lives on the bitcoin network itself, not with them and not with us.</div>
     <div class="note">One honest privacy note: those two servers do see the card's bitcoin address and your device's internet (IP) address when you check a balance or send. Because the same card address is looked up when the card is funded and again when it is claimed, in principle a server could tell those two visits are related. They never see your words or your name. For most gifts this does not matter, but if you want more privacy, move the bitcoin onward from your own wallet afterward.</div>
+    <div class="note">Honest note on trust: to send the bitcoin, this page rebuilds your card's key on your device, so for a normal gift it trusts that you opened the genuine page from the official address. For a larger amount, the offline tool at bitcards.xyz/offline.html avoids that trust: it never sends anything and hands the key to a wallet app you already trust.</div>
     <div class="note">Want proof you are running the real app? Two checks. (1) The fingerprint below is a hash of this app's program code; it should match the value published at bitcards.xyz. (2) That fingerprint covers the code, not the whole page. For the whole file, save this page and compare its SHA-256 against the published file hash (for example, Get-FileHash on Windows, or shasum -a 256). Most important of all: open the app from the official web address you trust, since a page served by someone else could look identical. Most people can skip all of this.</div>
     <div id="buildhash"></div>
     <div id="selftest"></div>

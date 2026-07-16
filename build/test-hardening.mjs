@@ -1,6 +1,7 @@
 // Regression tests for the 2026-07-15 audit hardening (schema validation, broadcast txid guard, RBF bump).
 // Run: node test-hardening.mjs   (expects "HARDENING OK")
-import { validateUtxos, isTxid, broadcastTx, feeRate, bumpEligible, splitConfirmed, MAX_FEERATE, MAX_UTXOS } from './core.js';
+import { validateUtxos, isTxid, bumpEligible, splitConfirmed, MAX_FEERATE, MAX_UTXOS } from './core.js';
+import { broadcastTx, feeRate } from './net.js';
 import * as btc from '@scure/btc-signer';
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
 import { hex as hexlib } from '@scure/base';

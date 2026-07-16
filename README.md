@@ -1,12 +1,13 @@
 # Bitcard — open standard + claim app (v0.4)
 
-A physical, non-custodial bitcoin gift card. The card carries a key split into two halves of 12 words: one sealed under a scratch panel at manufacture, one written by the buyer at setup. Only someone holding both halves can spend. The issuer never holds a complete key, never touches funds, and this repository exists so that **the bitcoin on any card is recoverable forever, by anyone, with standard tools, even if every Bitcard service disappears.**
+A physical, non-custodial bitcoin gift card. The card carries a key split into two halves of 12 words: one sealed under a scratch panel at manufacture, one written by the buyer at setup. Only someone holding both halves can spend. The issuer never holds a complete key and never touches funds. This repository exists so that **the bitcoin on any card is recoverable forever from the two word-halves, even if every Bitcard service disappears.** You recover with the open spec or the small included tool, and the recovered key then imports into any standard wallet.
 
 ## What is in this repository
 
 | Path | What it is |
 |---|---|
-| `app/claim-app.html` | The complete claim app: one self-contained HTML file. No external scripts, no server, no accounts. Runs from any host or from a saved local copy. |
+| `app/claim-app.html` | The complete claim app: one self-contained HTML file. No external scripts, no server, no accounts. Runs from any host or from a saved local copy. Convenience path, for small gifts. |
+| `app/offline.html` | The offline key tool: **no network code** (CSP `connect-src 'none'`), reconstructs the card's key on your device and shows it as a WIF to sweep with a standard wallet. For larger amounts. Save it and run it offline. |
 | `recover/recover.html` | Plain-English recovery instructions (works offline). |
 | `recover/bitcard-recover.py` | Offline recovery tool, Python standard library only. `python bitcard-recover.py --selftest` |
 | `spec/bitcard-claim-spec.md` | The normative open standard: key scheme, card record format, flows, sweep rules. |
@@ -15,13 +16,23 @@ A physical, non-custodial bitcoin gift card. The card carries a key split into t
 
 ## The trust model in one paragraph
 
-Cards carry no issuer key and the app verifies no issuer signature (v0.4 removed it deliberately: this is an open, permissionless standard, like BIP39). A card QR is just `base64url` of a 41-byte public record. Funds are protected by the two-half key scheme, not by anything Bitcard controls. The app runs entirely on your device; your words never leave it. Network access is read-only lookups + transaction broadcast to two public bitcoin servers, which must agree with each other before the app trusts them.
+Cards carry no issuer key and the app verifies no issuer signature (v0.4 removed it deliberately: this is an open, permissionless standard, like BIP39). A card QR is just `base64url` of a 41-byte public record. Funds are protected by the two-half key, not by anything Bitcard controls. Your words never leave your device.
+
+## What you must trust (and what you do not)
+
+- **To recover funds: nothing of Bitcard's.** The two word-halves plus the open method (or the included tool) reconstruct the key on any computer, offline. This is the permanent guarantee.
+- **To claim via the hosted web app (`bitcards.xyz/app.html`): you trust that you loaded the genuine app from the official address.** Like any web wallet, a compromised host could serve altered code that rebuilds the key inside the page. The published hash and the in-app code fingerprint let you check the program, but the real protection is loading it from a source you trust. This convenience path is meant for **small gifts.**
+- **To avoid trusting the website at all: use the offline key tool** (`bitcards.xyz/offline.html`, or the copy in this repo). It contains no network code (its CSP is `connect-src 'none'`), reconstructs the key on your device, and hands it to a standard wallet's Sweep. Recommended for **larger amounts.** Save it and run it on a device with no internet.
+
+This is an **additive two-part key** (the two halves add to one ordinary key), not an on-chain multisig. It gives two-party control before claim and low fees; it does not provide on-chain multisig features (independent signing, timelocks, revocation).
 
 ## Verify the released app
 
 ```
 sha256 of app/claim-app.html:
-4bb95a9baa0c502894621ddb315855d6a23e6ee49b076e0b3e2905ab08ec52da
+8134deb74f102bec6c26c63cd2bfbf91af5432bd7392c7f181abe846b5f1a5da
+sha256 of app/offline.html:
+ae0e808fe452fd76e08ee678e6cee3aed63b789740d5289e28b3e3759ecb726b
 ```
 
 PowerShell: `Get-FileHash app/claim-app.html` · Linux/macOS: `shasum -a 256 app/claim-app.html`
@@ -41,6 +52,6 @@ node test-hardening.mjs   # must print HARDENING OK
 
 ## Recover funds without any Bitcard service
 
-You need both sets of 12 words from the card. Then either open any copy of the claim app, or run `recover/bitcard-recover.py`, or re-implement from the spec: each half is BIP39 (English, empty passphrase) → BIP32 master private key as a scalar; the spending key is `(d1 + d2) mod n` on secp256k1; the address is P2WPKH of the combined public key. Vectors in `spec/` verify any implementation.
+You need both sets of 12 words from the card. Best: run `recover/bitcard-recover.py` (Python standard library only) or open the offline key tool, either of which reconstructs the key on your device with no network. Or re-implement from the spec: each half is BIP39 (English, empty passphrase) turned into a BIP32 master private key used **directly as a scalar** (nonstandard, which is why an ordinary wallet cannot recover from either phrase alone); the spending key is `(d1 + d2) mod n` on secp256k1; the address is P2WPKH of the combined public key. The recovered key is a standard WIF: **sweep** it with Electrum or Sparrow (use Sweep, not Import). Vectors in `spec/` verify any implementation.
 
 **Copy this repository freely.** Redundant copies are what make the recovery promise permanent.

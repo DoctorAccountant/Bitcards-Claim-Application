@@ -4,7 +4,9 @@
 // Copy rules: no em dashes anywhere; JS strings avoid apostrophes (use full words); HTML may use contractions.
 import { $, log, bip39, wordlist, btc, BTCNET, NET, hexlib, b64u,
   parseAndVerifyCard, buildRecord, halfScalar, pubOfScalar, setupAddress, combine, bigToBytes32, showBuildHash,
-  getUtxos, feeRate, estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed, broadcastTx } from './core.js';
+  estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed } from './core.js';
+import { getUtxos, feeRate, broadcastTx } from './net.js';   // network layer (online app only)
+import { ENDPOINTS } from './endpoints.js';                  // node URLs (online app only); the offline tool never imports this
 
 window.addEventListener('error', e => { const s=document.getElementById('status'); if(s) s.textContent='BUNDLE ERROR: '+(e.message||(e.error&&e.error.message)||e); });
 
@@ -378,7 +380,7 @@ function init(){
       }
       bo.appendChild(bh);
       bo.appendChild(document.createTextNode('\n\nReceipt (transaction id):\n'+r.txid+'\n\n'));
-      const a = document.createElement('a'); a.href = NET.txExplorer + r.txid; a.textContent = 'Track the payment'; a.target = '_blank'; a.rel = 'noopener';
+      const a = document.createElement('a'); a.href = ENDPOINTS.txExplorer +r.txid; a.textContent = 'Track the payment'; a.target = '_blank'; a.rel = 'noopener';
       bo.appendChild(a);
       // audit #7: leave a way to un-stick a slow payment. claimState is kept for this and cleared on pagehide/reset.
       $('confirmRow').classList.add('hide'); $('bcastBtn').classList.add('hide');
@@ -407,7 +409,7 @@ function init(){
       sp.textContent = (r.independent ? '✓ Sped up. ' : 'Sent a faster version, still confirming. ') + 'New fee '+sats(s.fee)+' sats, you receive '+sats(s.send)+' sats. This replaces the earlier payment, only one of them can confirm.';
       bo.appendChild(sp);
       bo.appendChild(document.createTextNode('\n\nNew receipt (transaction id):\n'+s.txid+'\n\n'));
-      const a = document.createElement('a'); a.href = NET.txExplorer + s.txid; a.textContent = 'Track the payment'; a.target = '_blank'; a.rel = 'noopener';
+      const a = document.createElement('a'); a.href = ENDPOINTS.txExplorer +s.txid; a.textContent = 'Track the payment'; a.target = '_blank'; a.rel = 'noopener';
       bo.appendChild(a);
     }catch(e){ log('bumpOut','Could not send the faster version ('+e.message+'). Your first payment may still confirm on its own, check your wallet.','bad'); }
   });

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Bitcard offline key tool</title>
+<style>
+  :root{ --bg:#fbfaf6; --card:#fff; --ink:#1a1a1a; --muted:#6b6b6b; --line:#e6e2d8; --brand:#E07B12; --brandd:#c26a08; --ok:#1d7a4d; --bad:#c0392b; --soft:#f3f1ea; }
+  *{box-sizing:border-box}
+  body{ margin:0; background:var(--bg); color:var(--ink); line-height:1.55; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap{ max-width:600px; margin:0 auto; padding:22px 18px 60px; }
+  header{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
+  h1{ font-size:23px; margin:0; letter-spacing:-.3px; }
+  #netbadge{ font-size:11px; font-weight:800; border-radius:999px; padding:3px 10px; white-space:nowrap; }
+  .tag{ color:var(--muted); font-size:15px; margin:0 0 16px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin:14px 0; box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.04); }
+  label{ display:block; font-size:14px; font-weight:600; margin:14px 0 6px; }
+  label:first-child{ margin-top:0; }
+  input{ width:100%; font:inherit; font-size:15px; border:1.5px solid #dcd8cc; border-radius:10px; padding:12px; background:#fff; }
+  input:focus{ outline:none; border-color:var(--brand); }
+  button{ font:inherit; font-size:15px; font-weight:700; background:var(--brand); color:#fff; border:none; border-radius:11px; padding:13px 18px; cursor:pointer; margin-top:12px; width:100%; }
+  button:hover{ background:var(--brandd); }
+  button.mini{ width:auto; padding:5px 12px; font-size:13px; margin:0; background:#fff; color:var(--ink); border:1.5px solid #dcd8cc; }
+  .lead{ color:var(--muted); font-size:14.5px; margin:0 0 6px; }
+  .note{ font-size:13.5px; color:var(--muted); background:var(--soft); border-radius:10px; padding:10px 12px; margin:10px 0; }
+  .warn{ font-size:14px; color:#7a3b12; background:#fbeee2; border:1px solid #eeccb0; border-radius:10px; padding:12px 14px; margin:10px 0; }
+  .out{ font-family:ui-monospace,Consolas,monospace; font-size:13px; overflow-wrap:anywhere; white-space:pre-wrap; background:var(--soft); border-radius:10px; padding:11px; margin:8px 0; }
+  .out:empty{ display:none; }
+  .keyrow{ font-family:ui-monospace,Consolas,monospace; font-size:15px; overflow-wrap:anywhere; background:#fff; border:1.5px solid var(--brand); border-radius:10px; padding:12px; margin:6px 0; user-select:all; }
+  .addr{ font-family:ui-monospace,Consolas,monospace; font-size:13px; overflow-wrap:anywhere; background:var(--soft); border-radius:10px; padding:10px; margin:6px 0; user-select:all; }
+  .wc{ font-size:12px; color:var(--muted); margin:3px 2px 0; min-height:14px; }
+  .ok{ color:var(--ok); font-weight:700; } .bad{ color:var(--bad); font-weight:700; }
+  .hide{ display:none!important; }
+  details{ margin-top:24px; } summary{ color:var(--muted); font-size:13px; cursor:pointer; }
+  #buildhash{ font-size:11px; color:var(--muted); word-break:break-all; margin:8px 0; }
+  #status{ font-size:12px; color:var(--muted); margin-top:6px; }
+  ol{ padding-left:20px; } ol li{ margin:5px 0; font-size:14.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Bitcard offline key tool</h1>
+    <span id="netbadge"></span>
+  </header>
+  <p class="tag">For larger amounts, or if you would rather not trust any website. This page never uses the internet.</p>
+
+  <div class="warn">
+    <b>How this is different from the normal claim page.</b> The normal page at bitcards.xyz is quick and fine for small gifts, but it rebuilds your full key in a page served over the web. This tool instead gives you the key so a trusted, well known wallet app (Sparrow or Electrum) does the actual sending. For the strongest safety, <b>save this page and open it on a device with no internet.</b> It contains no networking code and cannot send your words anywhere.
+  </div>
+
+  <div class="card">
+    <label>1. Card code (scan the QR on the back, or paste it)</label>
+    <input id="cardUri" placeholder="bitcard:..." autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div id="cardStatus" class="out"></div>
+
+    <label>2. The 12 handwritten words (the card's "your half" lines)</label>
+    <input id="p2" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="wc" id="wc2"></div>
+
+    <label>3. The 12 words under the scratch panel ("our half", scratch it off)</label>
+    <input id="p1" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="wc" id="wc1"></div>
+
+    <div class="note">Do this in a private place. Anyone who sees both sets of words, or the key below, can take the bitcoin.</div>
+    <button id="revealBtn">Reveal the key</button>
+    <div id="keyOut" class="out"></div>
+  </div>
+
+  <div class="card hide" id="resultBox">
+    <label>This card's funding address (check it is where the bitcoin was sent)</label>
+    <div class="addr" id="outAddr"></div>
+
+    <label>This card's private key
+      <button id="copyWif" class="mini" style="float:right;margin-top:-4px">copy</button>
+    </label>
+    <div class="keyrow" id="outWif"></div>
+
+    <div class="note">
+      <b>How to move the bitcoin:</b>
+      <ol>
+        <li>Open a trusted wallet: <b>Sparrow</b> or <b>Electrum</b> (free, well known).</li>
+        <li>Use its <b>Sweep</b> feature. Do NOT use "Import".</li>
+        <li>Paste the private key above, choose your own wallet as the destination, and send.</li>
+        <li>The wallet shows you the address, amount and fee before you confirm.</li>
+      </ol>
+      This card is a one-time key. After you sweep it, keep the card as a keepsake but do not reuse the key.
+    </div>
+  </div>
+
+  <details>
+    <summary>Is this tool genuine? (optional check)</summary>
+    <div class="note" style="margin-top:10px">This page does all its work on your device and has no way to reach the internet (its content policy is connect-src 'none' and it contains no networking code). It reproduces the same key as the open recovery method and the small Python recovery tool, so any of them can check the others. To be sure you have the real file, compare its full SHA-256 with the value published at bitcards.xyz, and best of all, get it from a source you trust and run it offline.</div>
+    <div id="buildhash"></div>
+    <div id="status">starting...</div>
+  </details>
+</div>
+<!--APPSCRIPT-->
+</body>
+</html>
