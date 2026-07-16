@@ -4,7 +4,7 @@
 // Copy rules: no em dashes anywhere; JS strings avoid apostrophes (use full words); HTML may use contractions.
 import { $, log, bip39, wordlist, btc, BTCNET, NET, hexlib, b64u,
   parseAndVerifyCard, buildRecord, halfScalar, pubOfScalar, setupAddress, combine, bigToBytes32, showBuildHash,
-  getUtxos, feeRate, estVbytes, MAX_FEERATE, bumpEligible, broadcastTx } from './core.js';
+  getUtxos, feeRate, estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed, broadcastTx } from './core.js';
 
 window.addEventListener('error', e => { const s=document.getElementById('status'); if(s) s.textContent='BUNDLE ERROR: '+(e.message||(e.error&&e.error.message)||e); });
 
@@ -78,7 +78,9 @@ async function checkClaimBalance(){
   }
   $('showOut').textContent = '';
   const sp = document.createElement('span'); sp.className = 'ok';
-  sp.textContent = '✓ This card holds '+sats(total)+' sats ('+btcStr(total)+' BTC). Sats are the small unit of bitcoin, like cents to a dollar.';
+  const pend = splitConfirmed(utxos).pend;
+  sp.textContent = '✓ This card holds '+sats(total)+' sats ('+btcStr(total)+' BTC). Sats are the small unit of bitcoin, like cents to a dollar.'
+    + (pend > 0 ? ' Note: '+sats(pend)+' sats of this arrived very recently and the network is still confirming it. If you can, wait about an hour and check again before sending, the transfer goes smoother.' : '');
   $('showOut').appendChild(sp);
   $('sendSection').classList.remove('hide');
 }
@@ -293,8 +295,12 @@ function init(){
     log('arriveOut','Checking...');
     try{
       const utxos = (await getUtxos(setup.addr)).utxos;
-      const total = utxos.reduce((s,u)=>s+u.value,0);
-      if(total > 0) log('arriveOut','This card now holds '+sats(total)+' sats. Seal the words and it is ready to give.','ok');
+      const { conf, pend } = splitConfirmed(utxos);
+      // "ready to give" is reserved for CONFIRMED money: a pending payment can in principle still fall through,
+      // and a sealed, gifted card must never be backed by funds that never landed.
+      if(conf > 0 && pend === 0) log('arriveOut','✓ This card holds '+sats(conf)+' sats, confirmed by the bitcoin network. Seal the words and it is ready to give.','ok');
+      else if(conf > 0) log('arriveOut','This card holds '+sats(conf)+' sats confirmed, and '+sats(pend)+' more sats are on the way but not confirmed yet. Wait until everything is confirmed before you seal and give it. Check again in a few minutes.');
+      else if(pend > 0) log('arriveOut','Your payment of '+sats(pend)+' sats is on the way: the network has seen it but not confirmed it yet. This usually takes ten minutes to an hour. Do not seal or give the card yet, check again once it is confirmed.');
       else log('arriveOut','Nothing has arrived yet. Payments usually show within the hour, check again soon.');
     }catch(e){ log('arriveOut','Could not reach the network: '+e.message,'bad'); }
   });
@@ -417,7 +423,8 @@ function init(){
       log('balFlowOut','Checking...');
       const utxos = (await getUtxos(addr)).utxos;
       const total = utxos.reduce((s,u)=>s+u.value,0);
-      if(total > 0) log('balFlowOut','This card holds '+sats(total)+' sats ('+btcStr(total)+' BTC). Keep the panel sealed until you are ready to claim.','ok');
+      const bPend = splitConfirmed(utxos).pend;
+      if(total > 0) log('balFlowOut','This card holds '+sats(total)+' sats ('+btcStr(total)+' BTC)'+(bPend > 0 ? ', of which '+sats(bPend)+' sats arrived recently and are still confirming' : '')+'. Keep the panel sealed until you are ready to claim.','ok');
       else log('balFlowOut','There is no bitcoin on this card right now. If it was funded in the last hour, the network may still be processing it, check again soon. If the card was claimed before, the bitcoin has already been moved.');
     }catch(e){ log('balFlowOut','Could not check: '+e.message,'bad'); }
   });

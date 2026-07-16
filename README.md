@@ -21,7 +21,7 @@ Cards carry no issuer key and the app verifies no issuer signature (v0.4 removed
 
 ```
 sha256 of app/claim-app.html:
-1e91c6d0072cbb16623f1cdcd2c10acd32d7f2132d86586af99703dde79f3f5f
+4bb95a9baa0c502894621ddb315855d6a23e6ee49b076e0b3e2905ab08ec52da
 ```
 
 PowerShell: `Get-FileHash app/claim-app.html` · Linux/macOS: `shasum -a 256 app/claim-app.html`

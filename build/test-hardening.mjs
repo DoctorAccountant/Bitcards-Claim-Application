@@ -1,6 +1,6 @@
 // Regression tests for the 2026-07-15 audit hardening (schema validation, broadcast txid guard, RBF bump).
 // Run: node test-hardening.mjs   (expects "HARDENING OK")
-import { validateUtxos, isTxid, broadcastTx, feeRate, bumpEligible, MAX_FEERATE, MAX_UTXOS } from './core.js';
+import { validateUtxos, isTxid, broadcastTx, feeRate, bumpEligible, splitConfirmed, MAX_FEERATE, MAX_UTXOS } from './core.js';
 import * as btc from '@scure/btc-signer';
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
 import { hex as hexlib } from '@scure/base';
@@ -23,6 +23,20 @@ throws('negative value rejected', () => validateUtxos([{ ...u, value: -1 }]));
 throws('unsafe value rejected', () => validateUtxos([{ ...u, value: Number.MAX_SAFE_INTEGER + 2 }]));
 throws('duplicate outpoint rejected', () => validateUtxos([u, { ...u }]));
 throws('too many inputs rejected', () => validateUtxos(Array.from({ length: MAX_UTXOS + 1 }, (_, i) => ({ txid: i.toString(16).padStart(64, '0'), vout: 0, value: 1 }))));
+
+// ---- confirmed vs pending split (give flow must not say "ready to give" on mempool-only funds) ----
+{
+  const mix = [
+    { txid: goodTxid, vout: 0, value: 3000, status: { confirmed: true } },
+    { txid: 'b'.repeat(64), vout: 1, value: 2000, status: { confirmed: false } },
+    { txid: 'c'.repeat(64), vout: 0, value: 500 }   // missing status = treat as pending
+  ];
+  const s = splitConfirmed(mix);
+  ok('split: confirmed sum correct', s.conf === 3000);
+  ok('split: pending sum correct (missing status counts as pending)', s.pend === 2500);
+  ok('split: total preserved', s.total === 5500);
+  ok('split: empty set is zero/zero', splitConfirmed([]).total === 0);
+}
 
 // ---- isTxid ----
 ok('isTxid accepts 64-hex', isTxid(goodTxid));

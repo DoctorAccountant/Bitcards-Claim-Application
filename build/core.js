@@ -52,6 +52,13 @@ export function validateUtxos(arr){ // §7: never trust node JSON shape; reject 
   }
   return arr;
 }
+// Split a UTXO set into network-confirmed vs still-pending value. Pure function (tested in test-hardening.mjs);
+// the give flow must never say "ready to give" for money the network has not confirmed yet.
+export function splitConfirmed(utxos){
+  let conf = 0, pend = 0;
+  for(const u of utxos){ if(u.status && u.status.confirmed) conf += u.value; else pend += u.value; }
+  return { conf, pend, total: conf + pend };
+}
 export async function getUtxos(addr){ // §7: require ALL nodes to respond, pass schema validation, AND agree before signing
   const res = await Promise.allSettled(NODES.map(b=>fetchJSON(b,'/address/'+addr+'/utxo')));
   const ok = res.filter(r=>r.status==='fulfilled').map(r=>r.value);
