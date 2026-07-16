@@ -47,7 +47,17 @@
   <p class="tag">For larger amounts, or if you would rather not trust any website. This page never uses the internet.</p>
 
   <div class="warn">
-    <b>How this is different from the normal claim page.</b> The normal page at bitcards.xyz is quick and fine for small gifts, but it rebuilds your full key in a page served over the web. This tool instead gives you the key so a trusted, well known wallet app (Sparrow or Electrum) does the actual sending. For the strongest safety, <b>save this page and open it on a device with no internet.</b> It contains no networking code and cannot send your words anywhere.
+    <b>How this is different from the normal claim page.</b> The quick page at bitcards.xyz/app.html rebuilds your full key inside a web page, so it trusts that the page was delivered honestly. This tool avoids that, <b>but only when you run it from a saved copy on a device with no internet.</b> Opened live from a website it is no safer than any website, so it will not accept your words until you save it and open the saved file. It contains no networking code, and it hands your key to a trusted wallet app (Sparrow or Electrum) to do the actual sending.
+  </div>
+
+  <div class="warn hide" id="liveGate" style="background:#fdeaea;border-color:#e6b3b3;color:#7a1212">
+    <b>You are viewing this over the web, so word entry is turned off on purpose.</b> To use it safely:
+    <ol>
+      <li><b>Download</b> this page: <a id="dlLink" href="offline.html" download="bitcard-offline.html">save bitcard-offline.html</a> (or press Ctrl+S and choose "HTML only").</li>
+      <li>Check its SHA-256 matches the value published at bitcards.xyz (for example, Get-FileHash on Windows, or shasum -a 256).</li>
+      <li><b>Disconnect from the internet,</b> then open the saved file. Word entry unlocks automatically.</li>
+    </ol>
+    Small gift and you would rather not bother? Use the quick page at bitcards.xyz/app.html instead.
   </div>
 
   <div class="card">
@@ -87,6 +97,7 @@
       </ol>
       This card is a one-time key. After you sweep it, keep the card as a keepsake but do not reuse the key.
     </div>
+    <button id="clearBtn">Done, clear the key from this screen</button>
   </div>
 
   <details>

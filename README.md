@@ -20,9 +20,9 @@ Cards carry no issuer key and the app verifies no issuer signature (v0.4 removed
 
 ## What you must trust (and what you do not)
 
-- **To recover funds: nothing of Bitcard's.** The two word-halves plus the open method (or the included tool) reconstruct the key on any computer, offline. This is the permanent guarantee.
+- **To recover funds: no operating Bitcard service is required.** The two word-halves plus the open method (or the included tool) reconstruct the key on any computer, offline. You do still trust, or independently verify, the recovery implementation you run, your own device, and the wallet you sweep into. This is the permanent guarantee.
 - **To claim via the hosted web app (`bitcards.xyz/app.html`): you trust that you loaded the genuine app from the official address.** Like any web wallet, a compromised host could serve altered code that rebuilds the key inside the page. The published hash and the in-app code fingerprint let you check the program, but the real protection is loading it from a source you trust. This convenience path is meant for **small gifts.**
-- **To avoid trusting the website at all: use the offline key tool** (`bitcards.xyz/offline.html`, or the copy in this repo). It contains no network code (its CSP is `connect-src 'none'`), reconstructs the key on your device, and hands it to a standard wallet's Sweep. Recommended for **larger amounts.** Save it and run it on a device with no internet.
+- **To avoid trusting website execution: use the offline key tool** (`app/offline.html`, or `bitcards.xyz/offline.html`). It contains no network code (its CSP is `connect-src 'none'`), reconstructs the key on your device, and hands it to a standard wallet's Sweep. Recommended for **larger amounts.** Note the honest limit: served live over HTTPS it is only as trustworthy as its delivery, so **the hosted page refuses word entry until you download it.** Save the file, verify its SHA-256 against the value published here, disconnect from the internet, then open the saved file (word entry unlocks under `file://`).
 
 This is an **additive two-part key** (the two halves add to one ordinary key), not an on-chain multisig. It gives two-party control before claim and low fees; it does not provide on-chain multisig features (independent signing, timelocks, revocation).
 
@@ -32,7 +32,7 @@ This is an **additive two-part key** (the two halves add to one ordinary key), n
 sha256 of app/claim-app.html:
 8134deb74f102bec6c26c63cd2bfbf91af5432bd7392c7f181abe846b5f1a5da
 sha256 of app/offline.html:
-ae0e808fe452fd76e08ee678e6cee3aed63b789740d5289e28b3e3759ecb726b
+23291f416cd5bba8b341c49975dcbf8bb146e24bf0f74722275abf60aa4164a0
 ```
 
 PowerShell: `Get-FileHash app/claim-app.html` · Linux/macOS: `shasum -a 256 app/claim-app.html`

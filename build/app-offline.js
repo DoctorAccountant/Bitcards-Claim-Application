@@ -16,12 +16,24 @@ function checkWords(raw, boxName){
   return { m };
 }
 
+// Remove any produced key from the DOM. Called before every attempt, on error, on card/word change, on Done, on pagehide.
+function clearResult(){ $('outAddr').textContent = ''; $('outWif').textContent = ''; $('resultBox').classList.add('hide'); }
+
 function init(){
   const isMain = NET.hrp === 'bc';
   document.title = 'Bitcard offline key tool (' + NET.label + ')';
   const nb = $('netbadge');
   if(nb){ nb.textContent = isMain ? 'Real bitcoin · mainnet' : 'TESTNET · practice';
     nb.style.cssText = 'font-size:11px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap;' + (isMain ? 'background:#E07B12;color:#fff' : 'background:#eee;color:#555'); }
+
+  // The "trust no website" promise only holds when this file runs from a SAVED copy (file://). Served live over the
+  // web, a compromised host could ship a modified page, so we REFUSE secret entry and require download-then-open-offline.
+  const LIVE = (location.protocol !== 'file:');
+  if(LIVE){
+    ['p1','p2','revealBtn'].forEach(id => { const el=$(id); if(el) el.disabled = true; });
+    const rb = $('revealBtn'); if(rb) rb.textContent = 'Save this page, then open it offline to use it';
+    const g = $('liveGate'); if(g) g.classList.remove('hide');
+  }
 
   try{ const h = (location.hash||'').replace(/^#/,'').trim(); if(h){ $('cardUri').value = h.startsWith('bitcard:') ? h : ('bitcard:'+h); } }catch(e){}
   function refreshCardStatus(){
@@ -30,14 +42,14 @@ function init(){
     try{ const c = parseAndVerifyCard(val); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; }
     catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Scan the QR on the back of the card, or paste the whole code.'; }
   }
-  $('cardUri').addEventListener('input', refreshCardStatus);
+  $('cardUri').addEventListener('input', ()=>{ refreshCardStatus(); clearResult(); });   // a new card must not leave the old key on screen
   refreshCardStatus();
 
-  function wireCounter(inp,out){ const el=$(inp),o=$(out); el.addEventListener('input',()=>{ const t=el.value.trim(); const n=t?t.split(/\s+/).length:0; o.textContent=n?(n+' of 12 words'):''; $('keyOut').textContent=''; }); }
+  function wireCounter(inp,out){ const el=$(inp),o=$(out); el.addEventListener('input',()=>{ const t=el.value.trim(); const n=t?t.split(/\s+/).length:0; o.textContent=n?(n+' of 12 words'):''; $('keyOut').textContent=''; clearResult(); }); }
   wireCounter('p2','wc2'); wireCounter('p1','wc1');
 
   $('revealBtn').onclick = ()=>{
-    $('keyOut').textContent = ''; $('resultBox').classList.add('hide');
+    clearResult(); $('keyOut').textContent = '';   // never let a previous key survive a new or failed attempt
     let card;
     try{ card = parseAndVerifyCard($('cardUri').value); }
     catch(e){ log('keyOut','First scan or paste the card code (the QR on the back of the card).','bad'); return; }
@@ -65,10 +77,13 @@ function init(){
   };
 
   $('copyWif').onclick = ()=>{
-    try{ navigator.clipboard.writeText($('outWif').textContent); const b=$('copyWif'); b.textContent='copied'; setTimeout(()=>{ b.textContent='copy'; },1500); }
+    try{ navigator.clipboard.writeText($('outWif').textContent); const b=$('copyWif'); b.textContent='copied, clear your clipboard after use'; setTimeout(()=>{ b.textContent='copy'; },2500); }
     catch(e){ log('keyOut','Copy is not available here. Select the key text by hand.','bad'); }
   };
+  $('clearBtn').onclick = ()=>{ clearResult(); $('keyOut').textContent = ''; };
+  window.addEventListener('pagehide', ()=>{ try{ clearResult(); $('p1').value=''; $('p2').value=''; }catch(e){} });
 
   showBuildHash();
+  const st = $('status'); if(st) st.textContent = LIVE ? 'download this page and open it offline to unlock it' : 'ready (running offline)';
 }
 init();
