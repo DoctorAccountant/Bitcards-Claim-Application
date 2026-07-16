@@ -62,8 +62,9 @@ function init(){
     let card;
     try{ card = parseAndVerifyCard(normCardInput($('cardUri').value)); }
     catch(e){ log('keyOut','First paste the card code, or the whole link from scanning the QR on the back of the card.','bad'); return; }
-    const r2 = checkWords($('p2').value, 'handwritten box'); if(r2.err){ log('keyOut', r2.err, 'bad'); return; }
+    // validated in on-screen order, which matches the card's top-to-bottom layout: sealed half first
     const r1 = checkWords($('p1').value, 'scratch-panel box'); if(r1.err){ log('keyOut', r1.err, 'bad'); return; }
+    const r2 = checkWords($('p2').value, 'handwritten box'); if(r2.err){ log('keyOut', r2.err, 'bad'); return; }
     // pairing: the scratch-panel words MUST reproduce this card's public key, or it is the wrong card / a typo
     let d1;
     try{

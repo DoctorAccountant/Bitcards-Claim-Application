@@ -318,16 +318,17 @@ function init(){
 
   // ---------- CLAIM FLOW ----------
   $('showBtn').onclick = ()=> run('showBtn', async ()=>{
-    const r2 = checkWords($('claimP2').value, 'top box');
-    if(r2.err){ log('showOut', r2.err, 'bad'); return; }
-    const r1 = checkWords($('claimP1').value, 'bottom box');
+    // boxes are validated in on-screen order, which matches the card's top-to-bottom layout: sealed half first
+    const r1 = checkWords($('claimP1').value, 'top box');
     if(r1.err){ log('showOut', r1.err, 'bad'); return; }
+    const r2 = checkWords($('claimP2').value, 'bottom box');
+    if(r2.err){ log('showOut', r2.err, 'bad'); return; }
     let card;
     try{ card = loadCard(); }
     catch(e){ log('showOut','This card code is not valid. Re-scan the QR on the back of the card, then try again.','bad'); return; }   // audit: fail closed, never skip the pairing check
     // the QR commits the hidden half: catch a mispaired or misread panel deterministically
     if(hexlib.encode(pubOfScalar(halfScalar(r1.m))) !== card.P1hex){
-      log('showOut','The words from under the scratch panel do not match this card. Re-check the bottom box word by word.','bad');
+      log('showOut','The words from under the scratch panel do not match this card. Re-check the top box word by word.','bad');
       return;
     }
     try{

@@ -107,18 +107,17 @@
     <div class="card">
       <h2>Claim your bitcoin</h2>
       <p class="lead">Let's see what's on this card, then move it into a wallet of your own, one step at a time. Nothing moves until you tick a box and confirm at the final step, and you can start over at any point before that.</p>
-      <div class="note">Using this for a larger amount? An optional offline version is available at <b>bitcards.xyz/offline.html</b>, for people who prefer to run the recovery on a device with no internet. Otherwise, this page is all you need.</div>
     </div>
     <div class="card">
       <div class="step">Step 1</div>
       <h2>Enter the words from the card</h2>
-      <p class="lead">You'll need both sets of 12 words from the back of the card. Type each set in order, with a space between each word (extra spaces or capitals are fine).</p>
-      <label>The 12 handwritten words (the card's "your half" lines)</label>
-      <input id="claimP2" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <div class="wc" id="wc2"></div>
+      <p class="lead">You'll need both sets of 12 words from the back of the card, in the same order they appear on it. Type each set in order, with a space between each word (extra spaces or capitals are fine).</p>
       <label>The 12 printed words under the scratch panel (the sealed half, scratch it off now)</label>
       <input id="claimP1" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
       <div class="wc" id="wc1"></div>
+      <label>The 12 handwritten words (the card's "your half" lines)</label>
+      <input id="claimP2" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="wc" id="wc2"></div>
       <div class="note">Use your own phone in a private place. Anyone who sees or photographs these words can take the bitcoin.</div>
       <button id="showBtn">Show my bitcoin</button>
       <div id="showOut" class="out"></div>
