@@ -4,7 +4,7 @@
 // Copy rules: no em dashes anywhere; JS strings avoid apostrophes (use full words); HTML may use contractions.
 import { $, log, bip39, wordlist, btc, BTCNET, NET, hexlib, b64u,
   parseAndVerifyCard, buildRecord, halfScalar, pubOfScalar, setupAddress, combine, bigToBytes32, showBuildHash,
-  getUtxos, feeRate, estVbytes, MAX_FEERATE, broadcastTx } from './core.js';
+  getUtxos, feeRate, estVbytes, MAX_FEERATE, bumpEligible, broadcastTx } from './core.js';
 
 window.addEventListener('error', e => { const s=document.getElementById('status'); if(s) s.textContent='BUNDLE ERROR: '+(e.message||(e.error&&e.error.message)||e); });
 
@@ -384,15 +384,15 @@ function init(){
   $('bumpBtn').onclick = ()=> run('bumpBtn', async ()=>{
     if(!claimState || !lastReviewedDest){ log('bumpOut','There is nothing to speed up on this page. If your payment has not arrived, re-enter your words in Step 1.','bad'); return; }
     if(cardChanged()){ resetFlowState(); return; }
-    // already at the safety ceiling: a "bump" would rebuild the identical transaction, so refuse instead of pretending
-    if((lastRate||0) >= MAX_FEERATE){ log('bumpOut','The fee is already at the safety maximum of this app, so it cannot go higher. The payment should still confirm, it may just take longer. Keep the card and check your wallet later.','bad'); return; }
+    // both bump guards run through bumpEligible (core.js) so the regression tests exercise the exact same decision
+    if(!bumpEligible(lastRate, null, null).ok){ log('bumpOut','The fee is already at the safety maximum of this app, so it cannot go higher. The payment should still confirm, it may just take longer. Keep the card and check your wallet later.','bad'); return; }
     log('bumpOut','Rebuilding at a higher fee...');
     const minRate = Math.max(2, Math.ceil((lastRate||2) * 1.5) + 1);   // bid strictly above the last fee
     let s;
     try{ s = await buildSweep(claimState, lastReviewedDest, minRate, lastUtxos); }   // re-spend the SAME inputs (valid RBF replacement)
     catch(e){ log('bumpOut', SWEEP_ERR[e.message] || ('Could not speed it up: '+e.message), 'bad'); return; }
     // a true replacement must differ; identical txid means the fee could not actually rise (e.g. clamped at the cap)
-    if(s.txid === lastTxId){ log('bumpOut','The rebuilt payment came out identical, the fee could not go any higher. Nothing new was sent, the original payment is still on its way.','bad'); return; }
+    if(!bumpEligible(lastRate, s.txid, lastTxId).ok){ log('bumpOut','The rebuilt payment came out identical, the fee could not go any higher. Nothing new was sent, the original payment is still on its way.','bad'); return; }
     try{
       const r = await broadcastTx(s.rawTx, s.txid);
       lastRawTx = s.rawTx; lastTxId = s.txid; lastRate = s.rate;

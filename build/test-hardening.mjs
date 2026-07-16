@@ -1,6 +1,6 @@
 // Regression tests for the 2026-07-15 audit hardening (schema validation, broadcast txid guard, RBF bump).
 // Run: node test-hardening.mjs   (expects "HARDENING OK")
-import { validateUtxos, isTxid, broadcastTx, feeRate, MAX_UTXOS } from './core.js';
+import { validateUtxos, isTxid, broadcastTx, feeRate, bumpEligible, MAX_FEERATE, MAX_UTXOS } from './core.js';
 import * as btc from '@scure/btc-signer';
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
 import { hex as hexlib } from '@scure/base';
@@ -117,6 +117,14 @@ const lo = buildAt(2), hi = buildAt(Math.ceil(2 * 1.5) + 1);
 ok('sweep fee derived from actual vsize', lo.fee === Math.max(200, Math.ceil(lo.vsize * 2)));
 ok('RBF bump raises the fee strictly', hi.fee > lo.fee);
 ok('bump produces a replacement (different txid)', hi.txid !== lo.txid);
+
+// ---- no-op-bump guards: the SAME bumpEligible the UI runs (audit round 4) ----
+ok('bump refused when already at the fee cap', bumpEligible(MAX_FEERATE, null, null).ok === false);
+ok('bump refused above the fee cap', bumpEligible(MAX_FEERATE + 50, null, null).ok === false);
+ok('bump refused when rebuilt txid is identical', bumpEligible(2, goodTxid, goodTxid).ok === false);
+ok('identical-txid check is case-insensitive', bumpEligible(2, goodTxid.toUpperCase(), goodTxid).ok === false);
+ok('bump allowed below cap before rebuild', bumpEligible(MAX_FEERATE - 1, null, null).ok === true);
+ok('bump allowed when fee can rise and txid differs', bumpEligible(2, 'b'.repeat(64), goodTxid).ok === true);
 
 console.log('\n' + (fail ? ('HARDENING FAIL (' + fail + ' failed, ' + pass + ' passed)') : ('HARDENING OK (' + pass + ' passed)')));
 process.exit(fail ? 1 : 0);

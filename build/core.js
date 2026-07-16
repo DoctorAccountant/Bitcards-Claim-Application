@@ -72,6 +72,13 @@ export async function feeRate(){
 }
 export function estVbytes(nIn){ return Math.ceil(10.5 + nIn*68 + 31); } // P2WPKH sweep, 1 output
 export const MAX_FEERATE = 100; // sat/vB sanity ceiling (§7 upper bound)
+// RBF bump eligibility: a replacement may claim "sped up" only if the fee can actually rise (not already at the
+// ceiling) and the rebuilt transaction actually differs. Pure function so regression tests run the same code the UI does.
+export function bumpEligible(lastRate, newTxid, lastTxId){
+  if((lastRate||0) >= MAX_FEERATE) return { ok:false, why:'atcap' };
+  if(newTxid && lastTxId && String(newTxid).toLowerCase() === String(lastTxId).toLowerCase()) return { ok:false, why:'identical' };
+  return { ok:true };
+}
 export async function broadcastTx(raw, expectedTxid){ // §7: post to ALL nodes; a node "accepts" only if it echoes the txid WE computed (a lying node cannot fake success)
   const res = await Promise.allSettled(NODES.map(async b => {
     const r = await fetchWithTimeout(b+'/tx',{method:'POST',body:raw});
