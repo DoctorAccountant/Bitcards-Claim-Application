@@ -151,8 +151,8 @@ async function buildSweep(c, dest, minRate, utxosOverride){
 const SWEEP_ERR = {
   empty:       'This card has no bitcoin on it to send. Nothing was sent.',
   dust:        'After the network fee, what would be left is below the tiny minimum the bitcoin network accepts. Nothing was sent, the bitcoin is still on the card. Try again when fees are lower.',
-  feecap:      'The fee for this payment is above our safety limit right now. Nothing was sent, the bitcoin is still on the card. Try again in a few hours.',
-  feehalf:     'Right now the network fee would eat more than half of what is on this card, so we stopped. Nothing was sent, the bitcoin is still on the card. Fees change hour to hour, try again later.',
+  feecap:      'The fee for this payment is above our safety limit right now. Nothing was sent, the bitcoin is still on the card. Try again in a few hours, or use the offline tool at bitcards.xyz/offline.html and sweep with your own wallet, where you choose the fee yourself.',
+  feehalf:     'Right now the network fee would eat more than half of what is on this card, so we stopped. Nothing was sent, the bitcoin is still on the card. Fees change hour to hour: try again later, or use the offline tool at bitcards.xyz/offline.html and sweep with your own wallet, where you choose the fee yourself.',
   destmismatch:'Safety check failed, the address did not match. Nothing was sent. Re-check your wallet address.'
 };
 
@@ -384,7 +384,7 @@ function init(){
       const bo = $('bcastOut'); bo.textContent = '';
       const bh = document.createElement('span'); bh.className = r.independent ? 'ok' : 'bad';
       if(r.independent){   // host-aware: the accepting node alone can never vouch for its own broadcast
-        bh.textContent = '✓ Sent. Your bitcoin is on its way, it usually appears in your wallet within the hour, often within minutes. This card is now empty, keep it as a keepsake.';
+        bh.textContent = '✓ Sent. Your bitcoin is on its way, it usually appears in your wallet within the hour, often within minutes. Keep the card and both sets of words until the bitcoin shows in your wallet, then keep the card as a keepsake.';
       }else{
         bh.textContent = 'A server accepted the payment, but we could not independently confirm it landed on the network yet. Do NOT throw the card away. Keep the card and its words, check your wallet in a few minutes, and use the receipt below to look it up. If it does not appear, you can safely try again.';
       }
