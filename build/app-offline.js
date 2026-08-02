@@ -1,8 +1,12 @@
-// Bitcard OFFLINE key tool (spec v0.4). Combines the two halves and shows the card's private key (WIF) so it can be
-// swept with a standard wallet. It NEVER touches the network: it imports only pure crypto + DOM helpers from core.js
-// (no getUtxos / broadcastTx / fetch), and its page CSP is connect-src 'none'. Works with EXISTING v0.4 cards unchanged.
+// Bitcard OFFLINE tool (spec v0.4). Two modes, both fully on-device:
+//   SETUP: makes the buyer's 12 words and derives the card's deposit address from the card's PUBLIC half. The sealed
+//          half is never needed, so a card can be set up and funded without any website seeing the address (this closes
+//          the setup-time trust gap: a compromised web app could otherwise display an attacker's deposit address).
+//   OPEN:  combines both halves and shows the card's private key (WIF) to sweep with a standard wallet.
+// It NEVER touches the network: imports only pure crypto + DOM helpers from core.js (no getUtxos / broadcastTx / fetch),
+// page CSP is connect-src 'none'. Works with EXISTING v0.4 cards unchanged (public record in, no card change needed).
 // Copy rules: no em dashes; JS single-quoted strings avoid apostrophes.
-import { $, log, NET, bip39, wordlist, halfScalar, pubOfScalar, combine, parseAndVerifyCard, toWIF, hexlib, showBuildHash } from './core.js';
+import { $, log, NET, bip39, wordlist, halfScalar, pubOfScalar, setupAddress, combine, parseAndVerifyCard, toWIF, hexlib, showBuildHash } from './core.js';
 
 window.addEventListener('error', e => { const s=document.getElementById('status'); if(s) s.textContent='BUNDLE ERROR: '+(e.message||(e.error&&e.error.message)||e); });
 
@@ -16,8 +20,20 @@ function checkWords(raw, boxName){
   return { m };
 }
 
-// Remove any produced key from the DOM. Called before every attempt, on error, on card/word change, on Done, on pagehide.
+// Remove any produced secret from the DOM. Called before every attempt, on error, on card/word change, on Done, on pagehide.
 function clearResult(){ $('outAddr').textContent = ''; $('outWif').textContent = ''; $('resultBox').classList.add('hide'); }
+function clearSetup(){
+  $('outWords').textContent = ''; $('outSetupAddr').textContent = ''; $('verifyWords').value = '';
+  $('verifyOut').textContent = ''; $('genOut').textContent = '';
+  $('setupResult').classList.add('hide');
+}
+// numbered two-column grid matching the card's printed lines (1-6 left, 7-12 right)
+function wordGrid(m){
+  const w = m.split(' ');
+  let out = '';
+  for(let i=0;i<6;i++){ out += ' '+String(i+1).padStart(2)+'. '+w[i].padEnd(10)+String(i+7).padStart(2)+'. '+w[i+6]+'\n'; }
+  return out;
+}
 
 // Accept the bare code, a "bitcard:" code, or the whole link from scanning the QR (".../app.html#AQAB...").
 function normCardInput(v){
@@ -37,12 +53,37 @@ function init(){
 
   // The "trust no website" promise only holds when this file runs from a SAVED copy (file://). Served live over the
   // web, a compromised host could ship a modified page, so we REFUSE secret entry and require download-then-open-offline.
+  // Both modes make or reveal secrets, so BOTH are gated: word entry and word generation stay off unless run from a saved file.
   const LIVE = (location.protocol !== 'file:');
   if(LIVE){
-    ['p1','p2','revealBtn'].forEach(id => { const el=$(id); if(el) el.disabled = true; });
+    ['p1','p2','revealBtn','genBtn','verifyWords','verifyBtn'].forEach(id => { const el=$(id); if(el) el.disabled = true; });
     const rb = $('revealBtn'); if(rb) rb.textContent = 'Save this page, then open it offline to use it';
+    const gb = $('genBtn'); if(gb) gb.textContent = 'Save this page, then open it offline to use it';
     const g = $('liveGate'); if(g) g.classList.remove('hide');
   }
+
+  // mode chooser: the card code box stays visible for both
+  const showMode = which => {
+    $('setupCard').classList.toggle('hide', which !== 'setup');
+    $('openCard').classList.toggle('hide', which !== 'open');
+    if(which !== 'setup') clearSetup();
+    if(which !== 'open') clearResult();
+    $('modeSetup').classList.toggle('hide', which !== null);
+    $('modeOpen').classList.toggle('hide', which !== null);
+    try{ window.scrollTo(0,0); }catch(e){}
+  };
+  const requireCard = () => {
+    try{ return parseAndVerifyCard(normCardInput($('cardUri').value)); }
+    catch(e){
+      $('cardStatus').textContent = 'First paste the card code above, or the whole link from scanning the card QR.';
+      try{ $('cardUri').scrollIntoView({behavior:'smooth', block:'center'}); }catch(err){}
+      return null;
+    }
+  };
+  $('modeSetup').onclick = ()=>{ if(requireCard()) showMode('setup'); };
+  $('modeOpen').onclick  = ()=>{ if(requireCard()) showMode('open'); };
+  $('setupBack').onclick = ()=> showMode(null);
+  $('openBack').onclick  = ()=> showMode(null);
 
   try{ const h = (location.hash||'').replace(/^#/,'').trim(); if(h){ $('cardUri').value = h.startsWith('bitcard:') ? h : ('bitcard:'+h); } }catch(e){}
   function refreshCardStatus(){
@@ -51,13 +92,43 @@ function init(){
     try{ const c = parseAndVerifyCard(normCardInput(val)); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; }
     catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Paste the whole card code, or the whole link from scanning the QR.'; }
   }
-  $('cardUri').addEventListener('input', ()=>{ refreshCardStatus(); clearResult(); });   // a new card must not leave the old key on screen
+  // a different card must never leave the previous card's words, address, or key on screen
+  $('cardUri').addEventListener('input', ()=>{ refreshCardStatus(); clearResult(); clearSetup(); showMode(null); });
   refreshCardStatus();
+
+  // ---------- SETUP MODE (no website, no sealed half needed) ----------
+  let setupState = null;   // { p1hex, mnemonic, addr }
+  $('genBtn').onclick = ()=>{
+    if(LIVE){ log('genOut','This page is running from a website, so it will not make card words here. Save the file and open it offline.','bad'); return; }   // fail closed in code, not just via the disabled attribute
+    const card = requireCard(); if(!card) return;
+    if(setupState && !confirm('Make a NEW set of 12 words?\n\nOnly do this if you have NOT written the current words on the card and have NOT sent any bitcoin. The old words and their deposit address cannot be recovered.')) return;
+    clearSetup();
+    try{
+      const m = bip39.generateMnemonic(wordlist, 128);
+      const addr = setupAddress(card.P1hex, halfScalar(m));   // card public half + fresh half, all on this device
+      setupState = { p1hex: card.P1hex, mnemonic: m, addr };
+      $('outWords').textContent = wordGrid(m);
+      $('outSetupAddr').textContent = addr;
+      $('setupResult').classList.remove('hide');
+      $('genOut').textContent = 'Card No. ' + card.serial + ': words made and deposit address worked out on this device. Nothing was sent anywhere.';
+    }catch(e){ log('genOut','Could not set up this card: '+e.message,'bad'); }
+  };
+  $('verifyBtn').onclick = ()=>{
+    if(LIVE){ log('verifyOut','This page is running from a website. Save the file and open it offline.','bad'); return; }
+    if(!setupState){ log('verifyOut','Make the 12 words first.','bad'); return; }
+    const r = checkWords($('verifyWords').value, 'box'); if(r.err){ log('verifyOut', r.err, 'bad'); return; }
+    let ok = false;
+    try{ ok = setupAddress(setupState.p1hex, halfScalar(r.m)) === setupState.addr; }catch(e){}
+    if(ok){ log('verifyOut','✓ The words you typed match this card and give the same deposit address. It is safe to send the bitcoin.','ok'); $('verifyWords').value = ''; }
+    else log('verifyOut','✗ Those words do NOT give the same deposit address. Do not send any bitcoin yet. Compare what you wrote against the list above, word by word and in order.','bad');
+  };
+  $('setupDone').onclick = ()=>{ setupState = null; clearSetup(); };
 
   function wireCounter(inp,out){ const el=$(inp),o=$(out); el.addEventListener('input',()=>{ const t=el.value.trim(); const n=t?t.split(/\s+/).length:0; o.textContent=n?(n+' of 12 words'):''; $('keyOut').textContent=''; clearResult(); }); }
   wireCounter('p2','wc2'); wireCounter('p1','wc1');
 
   $('revealBtn').onclick = ()=>{
+    if(LIVE){ log('keyOut','This page is running from a website, so it will not rebuild your key here. Save the file and open it offline.','bad'); return; }   // fail closed in code, not just via the disabled attribute
     clearResult(); $('keyOut').textContent = '';   // never let a previous key survive a new or failed attempt
     let card;
     try{ card = parseAndVerifyCard(normCardInput($('cardUri').value)); }
@@ -91,8 +162,9 @@ function init(){
     catch(e){ log('keyOut','Copy is not available here. Select the key text by hand.','bad'); }
   };
   $('clearBtn').onclick = ()=>{ clearResult(); $('keyOut').textContent = ''; };
-  window.addEventListener('pagehide', ()=>{ try{ clearResult(); $('p1').value=''; $('p2').value=''; }catch(e){} });
+  window.addEventListener('pagehide', ()=>{ try{ setupState = null; clearResult(); clearSetup(); $('p1').value=''; $('p2').value=''; }catch(e){} });
 
+  showMode(null);
   showBuildHash();
   const st = $('status'); if(st) st.textContent = LIVE ? 'download this page and open it offline to unlock it' : 'ready (running offline)';
 }

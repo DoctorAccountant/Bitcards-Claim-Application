@@ -32,6 +32,10 @@
   .wc{ font-size:12px; color:var(--muted); margin:3px 2px 0; min-height:14px; }
   .ok{ color:var(--ok); font-weight:700; } .bad{ color:var(--bad); font-weight:700; }
   .hide{ display:none!important; }
+  .choice{ text-align:left; background:#fff; color:var(--ink); border:1.5px solid var(--line); border-radius:14px; padding:15px 18px; margin-top:10px; font-size:15.5px; }
+  .choice:hover{ border-color:var(--brand); background:#fffdf9; }
+  .back{ display:inline-block; color:var(--muted); font-size:14px; cursor:pointer; margin-bottom:6px; }
+  .back:hover{ color:var(--ink); }
   details{ margin-top:24px; } summary{ color:var(--muted); font-size:13px; cursor:pointer; }
   #buildhash{ font-size:11px; color:var(--muted); word-break:break-all; margin:8px 0; }
   #status{ font-size:12px; color:var(--muted); margin-top:6px; }
@@ -64,12 +68,47 @@
     <label>1. Card code (paste the code, or the whole link you get from scanning the card's QR)</label>
     <input id="cardUri" placeholder="bitcard:..." autocomplete="off" autocapitalize="off" spellcheck="false">
     <div id="cardStatus" class="out"></div>
+  </div>
 
-    <label>2. The 12 words under the scratch panel (the sealed half, scratch it off)</label>
+  <p class="lead" style="margin:18px 0 0">What do you want to do?</p>
+  <button id="modeSetup" class="choice">Set up a card, to put bitcoin on it</button>
+  <button id="modeOpen" class="choice">Open a card, to take the bitcoin out</button>
+
+  <!-- SETUP MODE: computes the funding address from the card's PUBLIC half + fresh words. The seal is never opened. -->
+  <div class="card hide" id="setupCard">
+    <span class="back" id="setupBack">back</span>
+    <h2 style="font-size:18px;margin:2px 0 4px">Set up this card offline</h2>
+    <p class="lead">This makes the card's 12 handwritten words and works out the deposit address here on this device, so no website is involved in setting up your card. <b>Leave the scratch panel sealed.</b></p>
+    <div class="note">You will send bitcoin from your own wallet to the address this shows. Because this device is offline, do that from a different device, or reconnect only after you have written the words down and noted the address.</div>
+    <button id="genBtn">Make the 12 words and show the deposit address</button>
+    <div id="genOut" class="out"></div>
+  </div>
+
+  <div class="card hide" id="setupResult">
+    <label>Write these 12 words on the card's numbered lines, in order</label>
+    <div class="keyrow" id="outWords"></div>
+    <div class="warn" style="margin-top:10px"><b>These words are half the key to the bitcoin you are about to send.</b> Write them on the card with a pen. Do not photograph them, do not type them anywhere else, and check every word before sending any bitcoin. If they are lost, the bitcoin is gone: there is no backup and nobody can recover it.</div>
+
+    <label>Deposit address for this card (send the gift here)</label>
+    <div class="addr" id="outSetupAddr"></div>
+    <div class="note">Check the words you wrote on the card match the list above, character for character, <b>before</b> you send any bitcoin. To double check later, come back to this tool, choose "Set up a card", and instead use the verify box below: typing the card code plus the words you wrote must produce this same deposit address.</div>
+
+    <label>Verify what you wrote (optional, recommended)</label>
+    <input id="verifyWords" placeholder="re-type the 12 words you wrote on the card" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button id="verifyBtn" class="mini" style="width:auto;margin-top:8px">Check my writing</button>
+    <div id="verifyOut" class="out"></div>
+    <button id="setupDone">Done, clear this screen</button>
+  </div>
+
+  <!-- OPEN MODE: needs both halves; produces the spending key. -->
+  <div class="card hide" id="openCard">
+    <span class="back" id="openBack">back</span>
+    <h2 style="font-size:18px;margin:2px 0 4px">Open this card</h2>
+    <label>The 12 words under the scratch panel (the sealed half, scratch it off)</label>
     <input id="p1" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="wc" id="wc1"></div>
 
-    <label>3. The 12 handwritten words (the card's "your half" lines)</label>
+    <label>The 12 handwritten words (the card's "your half" lines)</label>
     <input id="p2" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="wc" id="wc2"></div>
 

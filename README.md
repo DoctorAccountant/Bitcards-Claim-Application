@@ -7,7 +7,7 @@ A physical, non-custodial bitcoin gift card. The card carries a key split into t
 | Path | What it is |
 |---|---|
 | `app/claim-app.html` | The complete claim app: one self-contained HTML file. No external scripts, no server, no accounts. Runs from any host or from a saved local copy. Convenience path, for small gifts. |
-| `app/offline.html` | The offline key tool: **no network code** (CSP `connect-src 'none'`), reconstructs the card's key on your device and shows it as a WIF to sweep with a standard wallet. For larger amounts. Save it and run it offline. |
+| `app/offline.html` | The offline tool, two modes, **no network code** (CSP `connect-src 'none'`): **set up a card** (generates the buyer's words and derives the deposit address on-device from the card's public QR data, so no website is involved in funding) and **open a card** (reconstructs the key as a WIF to sweep with a standard wallet). For larger amounts. Save it and run it offline. |
 | `recover/recover.html` | Plain-English recovery instructions (works offline). |
 | `recover/bitcard-recover.py` | Offline recovery tool, Python standard library only. `python bitcard-recover.py --selftest` |
 | `spec/bitcard-claim-spec.md` | The normative open standard: key scheme, card record format, flows, sweep rules. |
@@ -32,7 +32,7 @@ This is an **additive two-part key** (the two halves add to one ordinary key), n
 sha256 of app/claim-app.html:
 56dc0bf06f525c42a74a940f6472071c3bc2c48973cd6b4bd44e8cd8447b8c1e
 sha256 of app/offline.html:
-7bf249ec4878078f61fe69f1adcfcfb669c76e755652c6bcc34952341e7d3fda
+7a25b5f5222c05aff52d45099f89a3d4851a49592848365d05df398c7f16ef29
 ```
 
 PowerShell: `Get-FileHash app/claim-app.html` / Linux/macOS: `shasum -a 256 app/claim-app.html`
