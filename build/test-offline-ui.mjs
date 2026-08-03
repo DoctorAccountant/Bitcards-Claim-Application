@@ -38,8 +38,13 @@ function run({ live, onConfirm }){
     createElement: () => ({ className: '', textContent: '', href: '', target: '', rel: '', appendChild(){} }),
     createTextNode: t => ({ textContent: t })
   };
+  // window listeners must be RECORDED, not discarded: hashchange and pagehide are safety handlers,
+  // and a harness that throws them away can never catch their absence.
+  const winH = {};
   globalThis.window = {
-    addEventListener(){}, scrollTo(){},
+    addEventListener(ev, fn){ (winH[ev] = winH[ev] || []).push(fn); },
+    dispatch(ev){ (winH[ev] || []).forEach(fn => fn({})); },
+    scrollTo(){},
     location: { protocol: live ? 'https:' : 'file:', hash: '' }
   };
   globalThis.location = globalThis.window.location;
@@ -48,7 +53,7 @@ function run({ live, onConfirm }){
 
   const src = fs.readFileSync(BUNDLE, 'utf8');
   new Function(src)();   // executes init()
-  return { els, confirmAnswers };
+  return { els, confirmAnswers, win: globalThis.window };
 }
 
 let pass = 0, fail = 0;
@@ -174,6 +179,26 @@ const CARD_201 = 'AQABAQLfRDXIEvQOzzQua7XN1bX0GV4ADGLZhtcuHx0nACm7lgAAAMk';
   els.genBtn.onclick();
   ok('declining the blank-card question generates nothing', els.outWords.textContent === '');
   ok('declining leaves the address hidden', els.outSetupAddr.textContent === '');
+}
+
+// ---- 2e. A fragment change without a reload must reset, exactly like the hosted app ----
+// A saved page can have a second card scanned into the same tab. Keeping the FIRST card's generated words
+// on screen while the fragment names another card invites writing those words on the wrong physical card.
+{
+  const { els, win } = run({ live: false });
+  globalThis.location.hash = '#' + CARD_101;
+  win.dispatch('hashchange');
+  els.modeSetup.onclick();
+  els.genBtn.onclick();
+  const firstWords = els.outWords.textContent;
+  ok('hash switch: first card generated words', firstWords !== '');
+  globalThis.location.hash = '#' + CARD_201;
+  win.dispatch('hashchange');
+  ok('hash switch: new card is loaded', /card loaded \(No\. 201\)/.test(els.cardStatus.textContent), els.cardStatus.textContent);
+  ok('hash switch: previous generated words cleared', els.outWords.textContent === '');
+  ok('hash switch: previous deposit address cleared', els.outSetupAddr.textContent === '');
+  ok('hash switch: setup panel hidden', els.setupResult.classList.contains('hide'));
+  ok('hash switch: address panel hidden', els.addrBox.classList.contains('hide'));
 }
 
 // ---- 3. OPEN mode still works (regression) ----

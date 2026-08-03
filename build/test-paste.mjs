@@ -38,9 +38,26 @@ loads('wrapped in quotes',                       '"' + URL + '"', 999);
 loads('percent-encoded hash',                    'https://bitcards.xyz/app.html%23' + REC, 999);
 loads('http not https',                          URL.replace('https', 'http'), 999);
 loads('www prefix',                              URL.replace('https://', 'https://www.'), 999);
-loads('two links pasted together (uses last)',   URL + ' ' + URL, 999);
-loads('newline between two links (uses last)',   URL + '\n' + URL, 999);
+loads('the SAME link pasted twice',              URL + ' ' + URL, 999);
+loads('the same link twice on separate lines',   URL + '\n' + URL, 999);
 loads('bitcard: with a space after the colon',   'bitcard: ' + REC, 999);
+
+// --- TWO DIFFERENT CARDS IN ONE PASTE MUST FAIL LOUDLY ---
+// Silently choosing one lets a buyer write their words on the card in their hand while funding an address
+// derived from the other card's key half. That is unrecoverable, so ambiguity is never resolved by guessing.
+const VEC = 'AQABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHs';
+const VEC_URL = 'https://bitcards.xyz/app.html#' + VEC;
+const ambiguous = (name, input) => {
+  let msg = null;
+  try{ parseAndVerifyCard(normCardInput(input)); }catch(e){ msg = e.message; }
+  ok(name, /multiple cards/.test(msg || ''), msg === null ? 'ACCEPTED ONE SILENTLY' : msg);
+};
+ambiguous('two different links, A then B',       URL + ' ' + VEC_URL);
+ambiguous('two different links, B then A',       VEC_URL + ' ' + URL);
+ambiguous('two different links on separate lines', URL + '\n' + VEC_URL);
+ambiguous('two different raw records',           REC + ' ' + VEC);
+ambiguous('two different links inside a message', 'here are both: ' + URL + ' and also ' + VEC_URL + ' pick one');
+ambiguous('three links, two distinct',           URL + ' ' + URL + ' ' + VEC_URL);
 
 // --- forms that must be REJECTED cleanly, never silently mis-parsed ---
 rejects('empty',                     '');

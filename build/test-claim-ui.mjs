@@ -175,16 +175,26 @@ async function claimToReview(net){
 {
   // The lying-acceptor scenario: ONE node accepts and vouches for its own broadcast, the other rejects
   // and never sees it. A single self-interested witness must not be reported as a clean success.
+  // NOTE ON TIMING: net.js retries observation after 4s before giving up, so a short wait here would
+  // assert against "Sending..." and pass without ever seeing the final message. Await the handler, then
+  // wait past the retry window.
   const els = await claimToReview({
     utxos:[utxo(200000,true)],
     rejectPost: url => /mempool\.space/.test(url),
     observedBy: url => /blockstream/.test(url)
   });
   els.destConfirm.checked = true;
-  els.bcastBtn.onclick(); await tick(400);
-  ok('claim: acceptor-only observation is not reported as confirmed sent',
-     !/^\s*.{0,3}Sent\./i.test(els.bcastOut.textContent) || /could not independently confirm/i.test(els.bcastOut.textContent),
-     els.bcastOut.textContent.slice(0,110));
+  await els.bcastBtn.onclick();
+  await tick(5000);
+  const t = els.bcastOut.textContent;
+  ok('claim: acceptor-only broadcast is not still mid-flight when asserted', !/Sending/i.test(t), t.slice(0,110));
+  // no claim that the payment succeeded or is travelling. ("cannot be sent twice" appears later as safety
+  // advice and is fine; what must not appear is an assertion that it went through.)
+  ok('claim: acceptor-only broadcast never claims it went through or is on its way',
+     !/(went through|on its way|is on the way|payment succeeded)/i.test(t), t.slice(0,140));
+  ok('claim: acceptor-only broadcast does not open with a success tick', !/^\s*✓/.test(t), t.slice(0,60));
+  ok('claim: acceptor-only broadcast states no second server has seen it',
+     /no second server has seen it/i.test(t), t.slice(0,140));
 }
 {
   const els = await claimToReview({ utxos:[utxo(200000,true)] });   // both nodes observe

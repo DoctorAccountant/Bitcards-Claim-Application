@@ -113,6 +113,19 @@ export function normWords(s){
 // person typed (the input box is untouched; this only normalizes at parse time).
 export function normCardInput(v){
   v = String(v == null ? '' : v).trim();
+  // Find EVERY valid card record anywhere in the input, not just the last one. A person can easily paste a
+  // message containing two different card links; silently choosing one would let a buyer write their words on
+  // the card in their hand while funding an address derived from the OTHER card's key half, which is
+  // unrecoverable. Ambiguity must therefore fail loudly instead of picking a winner.
+  const found = [];
+  for(const run of (v.match(/[A-Za-z0-9_-]+/g) || [])){
+    const rec = run.replace(/^bitcard:/i, '');
+    try{ parseCard('bitcard:' + rec); if(found.indexOf(rec) < 0) found.push(rec); }catch(e){}
+  }
+  if(found.length > 1) throw new Error('multiple cards pasted');
+  if(found.length === 1) return 'bitcard:' + found[0];
+  // Nothing valid yet (partial typing, junk, a bare URL): fall back to the fragment so the status line can
+  // still tell the difference between "not finished pasting" and "this is not a card code".
   const hh = v.lastIndexOf('#');
   const pp = v.toLowerCase().lastIndexOf('%23');
   if(hh >= 0 || pp >= 0){

@@ -65,7 +65,7 @@ async function checkClaimBalance(){
   let utxos;
   try{ utxos = (await getUtxos(c.address)).utxos; }
   catch(e){
-    $('showOut').textContent = 'We could not reach the bitcoin network to check the balance. Nothing was sent and nothing is wrong with your words. This page still has your card open: check your internet connection, then tap Try again, you do not need to retype anything. [NET-01]';
+    $('showOut').textContent = 'We could not reach the bitcoin network to check the balance. Nothing was sent. Both boxes held valid word sets and the scratch-panel words matched this card, though we cannot tell whether the handwritten words are the ones on your card until the network answers. This page still has your card open: check your internet connection, then tap Try again, you do not need to retype anything. [NET-01]';
     $('retryBal').classList.remove('hide');
     return;
   }
@@ -186,11 +186,13 @@ function init(){
       showCardBox(false);
     }catch(e){
       showCardBox(true);
-      // distinguish "you are part way through pasting" from "this is not a card code at all"
       const partial = /^(bitcard:)?[A-Za-z0-9_-]*$/.test(val) && val.replace(/^bitcard:/,'').length < 55;
-      $('cardStatus').textContent = partial
-        ? 'That code is not complete yet. Paste the whole code, or scan the QR on the back of the card with your phone camera.'
-        : 'This does not look like a Bitcard code. Scan the QR on the back of the card with your phone camera, or paste the complete Bitcard link.';
+      $('cardStatus').textContent =
+        /multiple cards/.test(e.message)
+          ? 'More than one card link was pasted, so we cannot tell which card you are holding. Clear the box and paste only the link for the card in your hand, or scan its QR. [CARD-05]'
+        : partial
+          ? 'That code is not complete yet. Paste the whole code, or scan the QR on the back of the card with your phone camera.'
+          : 'This does not look like a Bitcard code. Scan the QR on the back of the card with your phone camera, or paste the complete Bitcard link. [CARD-01]';
       setChip(''); setRoutesEnabled(false);
     }
   }
@@ -242,8 +244,9 @@ function init(){
   function wireCounter(inpId, outId){
     const el = $(inpId), o = $(outId);
     el.addEventListener('input', ()=>{
-      const t = el.value.trim();
-      const n = t ? t.split(/\s+/).length : 0;
+      // count exactly the way validation parses, or a comma separated list reads "1 of 12 words" and then submits fine
+      const t = normWords(el.value);
+      const n = t ? t.split(' ').length : 0;
       o.textContent = n ? (n + ' of 12 words') : '';
       $('showOut').textContent = '';
       $('retryBal').classList.add('hide');
@@ -396,7 +399,11 @@ function init(){
   $('reviewBtn').onclick = ()=> run('reviewBtn', async ()=>{
     if(!claimState){ log('claimOut','Please do Step 1 first (enter your words and tap "Show my bitcoin").','bad'); return; }
     if(cardChanged()){ resetFlowState(); log('claimOut','The card changed. Please start again from Step 1.','bad'); return; }
-    const dest = $('dest').value.trim();
+    // bech32 is case insensitive, so an ALL-CAPS address is valid. Canonicalize before use, otherwise the
+    // exact-string safety check compares the typed casing against the library's lowercase re-encoding and
+    // refuses a perfectly good address.
+    let dest = $('dest').value.trim();
+    try{ const a = btc.Address(BTCNET); dest = a.encode(a.decode(dest)); }catch(e){}
     if(!dest){ log('claimOut','Enter your wallet address. If you do not have a wallet app yet, tap the button below the box.','bad'); return; }
     $('confirmRow').classList.add('hide'); $('bcastBtn').classList.add('hide'); $('bumpBtn').classList.add('hide');
     let s;
@@ -419,7 +426,10 @@ function init(){
     if($('destConfirm') && !$('destConfirm').checked){ log('bcastOut','Please tick the box to confirm the address is correct.','bad'); return; }
     if(cardChanged()){ resetFlowState(); log('bcastOut','The card changed. Please start again from Step 1.','bad'); return; }
     // audit #4: the draft is signed to one exact address; if the box no longer matches it, refuse and force a fresh review
-    if($('dest').value.trim() !== lastReviewedDest){
+    // compare canonically, the same way Review did, so re-encoding case does not look like an edit
+    let destNow = $('dest').value.trim();
+    try{ const a = btc.Address(BTCNET); destNow = a.encode(a.decode(destNow)); }catch(e){}
+    if(destNow !== lastReviewedDest){
       lastRawTx = null; lastTxId = null; lastReviewedDest = null;
       $('confirmRow').classList.add('hide'); $('bcastBtn').classList.add('hide');
       log('bcastOut','The wallet address changed after you reviewed it. Nothing was sent. Tap "Review before sending" again so you confirm the address it will actually go to.','bad');
@@ -435,7 +445,7 @@ function init(){
       if(r.independent){   // host-aware: the accepting node alone can never vouch for its own broadcast
         bh.textContent = '✓ Sent. Your payment is on its way. It should show in your wallet as pending within a few minutes, and it is only final once your wallet marks it confirmed, usually within the hour. Keep the card and both sets of words until you see it confirmed, not just pending. After that the card is spent for good: never send bitcoin to this card again, because anyone who has seen the opened card can take it.';
       }else{
-        bh.textContent = 'Your payment went through and is on its way. We could not double-check it with a second server, so we will not promise until you see it. Keep the card and both sets of words for now, and check your wallet app in about ten minutes. If nothing has arrived after an hour, come back to this page and send again. That is safe: the same bitcoin cannot be sent twice, so a second attempt cannot pay anyone twice.';
+        bh.textContent = 'One server accepted the payment, but no second server has seen it yet, so it may not have travelled beyond that one server. Keep the card and both sets of words for now, and check your wallet app in about ten minutes. If nothing has arrived after an hour, come back to this page and send again. That is safe: the same bitcoin cannot be sent twice, so a second attempt cannot pay anyone twice.';
       }
       bo.appendChild(bh);
       bo.appendChild(document.createTextNode('\n\nReceipt (transaction id):\n'+r.txid+'\n\n'));
@@ -465,7 +475,7 @@ function init(){
       lastRawTx = s.rawTx; lastTxId = s.txid; lastRate = s.rate;
       const bo = $('bumpOut'); bo.textContent = '';
       const sp = document.createElement('span'); sp.className = r.independent ? 'ok' : 'pending';
-      sp.textContent = (r.independent ? '✓ Done. ' : 'Sent a faster version, still confirming. ') + 'We asked the network to move things along by paying a larger fee. New fee '+sats(s.fee)+' sats, you receive '+sats(s.send)+' sats. This is still the same single payment, not a second one, so nothing can be paid twice.';
+      sp.textContent = (r.independent ? '✓ Done. ' : 'One server accepted the faster version, but no second server has seen it yet. ') + 'We asked the network to move things along by paying a larger fee. New fee '+sats(s.fee)+' sats, you receive '+sats(s.send)+' sats. This is still the same single payment, not a second one, so nothing can be paid twice.';
       bo.appendChild(sp);
       bo.appendChild(document.createTextNode('\n\nNew receipt (transaction id):\n'+s.txid+'\n\n'));
       const a = document.createElement('a'); a.href = ENDPOINTS.txExplorer +s.txid; a.textContent = 'Track the payment'; a.target = '_blank'; a.rel = 'noopener';

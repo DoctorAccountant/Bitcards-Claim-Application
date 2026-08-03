@@ -86,12 +86,22 @@ function init(){
     const val = $('cardUri').value.trim();
     if(!val){ $('cardStatus').textContent = ''; return; }
     try{ const c = parseAndVerifyCard(normCardInput(val)); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; }
-    catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Paste the whole card code, or the whole link from scanning the QR.'; }
+    catch(e){ $('cardStatus').textContent = /multiple cards/.test(e.message)
+      ? 'More than one card link was pasted, so we cannot tell which card you are holding. Clear the box and paste only the link for the card in your hand.'
+      : 'That code is not complete yet. Paste the whole card code, or the whole link from scanning the QR.'; }
   }
   // a different card must never leave the previous card's words, address, or key on screen
   // a different card must wipe the generated words too, not just the display: verifying against a stale
   // card record would show a deposit address belonging to the previous card
   $('cardUri').addEventListener('input', ()=>{ resetSetupState(); refreshCardStatus(); clearResult(); clearSetup(); showMode(null); });
+  // A saved page can have its fragment changed without a reload (scanning a second card into the same tab).
+  // Without this the tool would keep showing the FIRST card's generated words while the fragment says another
+  // card, and an operator could write those words onto the wrong physical card. Same fail-closed reset the
+  // hosted app performs.
+  window.addEventListener('hashchange', ()=>{
+    try{ const h=(location.hash||'').replace(/^#/,'').trim(); if(h){ $('cardUri').value = h.startsWith('bitcard:')?h:('bitcard:'+h); } }catch(e){}
+    resetSetupState(); clearResult(); clearSetup(); refreshCardStatus(); showMode(null);
+  });
   refreshCardStatus();
 
   // ---------- SETUP MODE (no website, no sealed half needed) ----------
@@ -166,7 +176,8 @@ function init(){
 
   $('setupDone').onclick = ()=>{ resetSetupState(); clearSetup(); };
 
-  function wireCounter(inp,out){ const el=$(inp),o=$(out); el.addEventListener('input',()=>{ const t=el.value.trim(); const n=t?t.split(/\s+/).length:0; o.textContent=n?(n+' of 12 words'):''; $('keyOut').textContent=''; clearResult(); }); }
+  // count exactly the way validation parses (normWords), so a comma separated list does not read "1 of 12 words"
+  function wireCounter(inp,out){ const el=$(inp),o=$(out); el.addEventListener('input',()=>{ const t=normWords(el.value); const n=t?t.split(' ').length:0; o.textContent=n?(n+' of 12 words'):''; $('keyOut').textContent=''; clearResult(); }); }
   wireCounter('p2','wc2'); wireCounter('p1','wc1');
 
   $('revealBtn').onclick = ()=>{
