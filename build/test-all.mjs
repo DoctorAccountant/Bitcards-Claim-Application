@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 const SUITES = [
   ['test-encoding.mjs',     [], 'encoding: no mojibake, templates and artifacts ASCII'],
   ['test-core.mjs',         [], 'crypto vectors and card record round-trip'],
+  ['test-entropy.mjs',      [], 'key generation entropy path (the Coldcard failure class)'],
   ['test-mainnet.mjs',      [], 'mainnet address encoding'],
   ['test-paste.mjs',        [], 'card code and word input parsing, including ambiguous pastes'],
   ['test-hardening.mjs',    [], 'node trust, broadcast, fee and RBF bounds'],
