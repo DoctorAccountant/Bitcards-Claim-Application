@@ -19,8 +19,8 @@ function checkWords(raw, boxName){
   const m = normWords(raw);
   const words = m ? m.split(' ') : [];
   if(words.length !== 12) return { err: 'The '+boxName+' has '+words.length+(words.length===1?' word':' words')+', it needs exactly 12. Type them in order with a space between each one.' };
-  for(let i=0;i<12;i++){ if(wordlist.indexOf(words[i]) < 0) return { err: 'In the '+boxName+', word '+(i+1)+' ("'+words[i]+'") is not one of the bitcoin word list words. That is almost always a typo or a misread letter, so nothing is lost. Look at word '+(i+1)+' on the card again and retype it.' }; }
-  try{ halfScalar(m); }catch(e){ return { err: 'The '+boxName+' is very close but not exactly right. Usually one word is misspelled, or two words got swapped. Your bitcoin is safe on the card and nothing has been sent. Compare the box with the card one word at a time.' }; }
+  for(let i=0;i<12;i++){ if(wordlist.indexOf(words[i]) < 0) return { err: 'Word '+(i+1)+' in the '+boxName+' ("'+words[i]+'") is not a recognized recovery word. That is almost always a typo or a misread letter, so nothing is lost. Look at word '+(i+1)+' on the card again and retype it.' }; }
+  try{ halfScalar(m); }catch(e){ return { err: 'The 12 words in the '+boxName+' are not a valid set. Usually one word is misspelled, or two words are in the wrong order. Your bitcoin is safe on the card and nothing has been sent. Check their spelling and order against the card, one word at a time.' }; }
   return { m };
 }
 
@@ -82,7 +82,7 @@ async function checkClaimBalance(){
   }
   const total = utxos.reduce((s,u)=>s+u.value,0);
   if(total <= 0){
-    $('showOut').textContent = 'This card is showing a balance of 0 sats. That is usually one of these, in order of how often it happens. One: a word is typed slightly wrong. A single wrong letter points at a different, empty card, so compare both boxes with the card one word at a time, then tap Try again. Two: bitcoin was added in the last hour and the network is still working on it, so wait a little and check again. Three: it has not been added yet, and whoever gave you the card can tell you. Four: this card was claimed before, so the bitcoin has already been moved on.';
+    $('showOut').textContent = 'No bitcoin is showing on this card right now. Nothing was moved by this check. First, compare both sets of words with the card one at a time, since a single wrong letter points at a different, empty card, then tap Try again. If the words are right: a payment sent very recently can take a while to appear, so wait a few minutes; or ask whoever gave you the card whether the bitcoin was sent; or the card may have been claimed before.';
     $('retryBal').classList.remove('hide');
     $('sendSection').classList.add('hide');
     return;
@@ -90,7 +90,7 @@ async function checkClaimBalance(){
   $('showOut').textContent = '';
   const sp = document.createElement('span'); sp.className = 'ok';
   const pend = splitConfirmed(utxos).pend;
-  sp.textContent = '✓ This card holds '+sats(total)+' sats ('+btcStr(total)+' BTC). Sats are the small unit of bitcoin, like cents to a dollar.'
+  sp.textContent = '✓ This card holds '+sats(total)+' satoshis ("sats"), tiny units of bitcoin, like cents to a dollar. The exact amount is '+btcStr(total)+' BTC.'
     + (pend > 0 ? ' Note: '+sats(pend)+' sats of this only just arrived and the bitcoin network has not confirmed it yet. Until it does, that part can still fall through, and if you send now your payment has to wait behind it. Wait about an hour and check again. The bitcoin is not going anywhere.' : '');
   $('showOut').appendChild(sp);
   $('sendSection').classList.remove('hide');
@@ -161,7 +161,7 @@ function init(){
   const isMain = NET.hrp === 'bc';
   document.title = 'Bitcard ' + NET.label;
   const nb = $('netbadge');
-  if(nb){ nb.textContent = isMain ? 'Real bitcoin · mainnet' : 'TESTNET · practice';
+  if(nb){ nb.textContent = isMain ? 'Uses real bitcoin' : 'PRACTICE ONLY, not real bitcoin';
     nb.style.cssText = 'font-size:11px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap;' + (isMain ? 'background:#E07B12;color:#fff' : 'background:#eee;color:#555'); }
 
   // scan-and-go: a scanned card arrives in the URL fragment (never sent to any server)
@@ -173,11 +173,24 @@ function init(){
     el.textContent = text || '';
     el.classList.toggle('hide', !text);
   }
+  // route buttons stay disabled until a real card is loaded, so tapping one can never just produce an error
+  function setRoutesEnabled(on){
+    ['pathGive','pathClaim','pathBal'].forEach(id => { const el = $(id); if(el) el.disabled = !on; });
+  }
   function refreshCardStatus(){
     const val = $('cardUri').value.trim();
-    if(!val){ $('cardStatus').textContent = ''; setChip(''); return; }
-    try{ const c = loadCard(); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; setChip('No. '+c.serial); }
-    catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Scan the QR on the back of the card with your phone camera, or paste the whole code or link here.'; setChip(''); }
+    if(!val){ $('cardStatus').textContent = ''; setChip(''); setRoutesEnabled(false); return; }
+    try{
+      const c = loadCard();
+      $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; setChip('No. '+c.serial); setRoutesEnabled(true);
+    }catch(e){
+      // distinguish "you are part way through pasting" from "this is not a card code at all"
+      const partial = /^(bitcard:)?[A-Za-z0-9_-]*$/.test(val) && val.replace(/^bitcard:/,'').length < 55;
+      $('cardStatus').textContent = partial
+        ? 'That code is not complete yet. Paste the whole code, or scan the QR on the back of the card with your phone camera.'
+        : 'This does not look like a Bitcard code. Scan the QR on the back of the card with your phone camera, or paste the complete Bitcard link.';
+      setChip(''); setRoutesEnabled(false);
+    }
   }
   // audit: the card box changing (paste, or a scan into the same open tab) must wipe ALL flow state, so card A can
   // never be funded/spent with card B in hand. A fresh page load already starts clean; this covers same-session swaps.
@@ -203,9 +216,24 @@ function init(){
   $('pathGive').onclick = ()=> go('giveFlow');
   $('pathClaim').onclick = ()=> go('claimFlow');
   $('pathBal').onclick = ()=> go('balFlow');
+  // Back from GIVE keeps the generated words on purpose: they may already be written on a physical card,
+  // and silently discarding them would strand any bitcoin later sent to that card. The button label says so.
   $('giveBack').onclick = ()=> show('chooser');
-  $('claimBack').onclick = ()=> show('chooser');
-  $('balBack').onclick = ()=> show('chooser');
+  // Back from CLAIM and BALANCE really does start over: nothing is written down yet, and leaving typed
+  // secret words sitting in the boxes is both confusing and a privacy leak on a shared phone.
+  $('claimBack').onclick = ()=>{
+    claimState = null; lastRawTx = null; lastTxId = null; lastReviewedDest = null; lastUtxos = null; lastRate = null;
+    ['claimP1','claimP2','dest'].forEach(id => { const el=$(id); if(el) el.value=''; });
+    ['wc1','wc2','showOut','claimOut','bcastOut','bumpOut','destOut'].forEach(id => { const el=$(id); if(el) el.textContent=''; });
+    ['sendSection','confirmRow','bcastBtn','bumpBtn','retryBal'].forEach(id => { const el=$(id); if(el) el.classList.add('hide'); });
+    const dc = $('destConfirm'); if(dc) dc.checked = false;
+    show('chooser');
+  };
+  $('balBack').onclick = ()=>{
+    const bw = $('balWords'); if(bw) bw.value = '';
+    const bo = $('balFlowOut'); if(bo) bo.textContent = '';
+    show('chooser');
+  };
 
   // live word counters on the claim inputs; edits clear any stale error
   function wireCounter(inpId, outId){
@@ -291,7 +319,9 @@ function init(){
     try{
       if(!setup.addr){ log('verifyOut','Please do Step 1 first.','bad'); return; }
       if(cardChanged()){ resetFlowState(); log('verifyOut','The card changed. Please start again from Step 1.','bad'); return; }
-      const ok = setupAddress(setup.p1, halfScalar(normWords($('verifyWords').value))) === setup.addr;
+      // same word-by-word diagnosis the claim flow gives, instead of a single vague catch-all
+      const chk = checkWords($('verifyWords').value, 'box'); if(chk.err){ log('verifyOut', chk.err, 'bad'); return; }
+      const ok = setupAddress(setup.p1, halfScalar(chk.m)) === setup.addr;
       if(ok){
         setupLocked = true;   // audit #6: from here, regeneration is disabled outright (see setupBtn)
         log('verifyOut','✓ The words match. You can add bitcoin now.','ok');
@@ -315,7 +345,7 @@ function init(){
       const { conf, pend } = splitConfirmed(utxos);
       // "ready to give" is reserved for CONFIRMED money: a pending payment can in principle still fall through,
       // and a sealed, gifted card must never be backed by funds that never landed.
-      if(conf > 0 && pend === 0) log('arriveOut','✓ This card holds '+sats(conf)+' sats, confirmed by the bitcoin network. Seal the words and it is ready to give.','ok');
+      if(conf > 0 && pend === 0) log('arriveOut','✓ This card holds '+sats(conf)+' satoshis ("sats", tiny units of bitcoin), confirmed by the bitcoin network. Seal the words and it is ready to give.','ok');
       else if(conf > 0) log('arriveOut','This card holds '+sats(conf)+' sats confirmed, and '+sats(pend)+' more sats are on the way but not confirmed yet. Wait until everything is confirmed before you seal and give it. Check again in a few minutes.');
       else if(pend > 0) log('arriveOut','Your payment of '+sats(pend)+' sats is on the way: the network has seen it but not confirmed it yet. This usually takes ten minutes to an hour. Do not seal or give the card yet, check again once it is confirmed.');
       else log('arriveOut','Nothing has arrived yet. Payments usually show within the hour, check again soon.');
@@ -334,7 +364,15 @@ function init(){
     catch(e){ log('showOut','This card code is not valid. Re-scan the QR on the back of the card, then try again.','bad'); return; }   // audit: fail closed, never skip the pairing check
     // the QR commits the hidden half: catch a mispaired or misread panel deterministically
     if(hexlib.encode(pubOfScalar(halfScalar(r1.m))) !== card.P1hex){
-      log('showOut','The words from under the scratch panel do not match this card. Re-check the scratched-off words one at a time, and make sure the card code above belongs to the card you are holding.','bad');
+      // before blaming the card, check the commonest human error: the two sets typed into the wrong boxes.
+      // If the SECOND box reproduces the card's key, they are simply swapped, and we can say so exactly.
+      let swapped = false;
+      try{ swapped = hexlib.encode(pubOfScalar(halfScalar(r2.m))) === card.P1hex; }catch(e){}
+      if(swapped){
+        log('showOut','It looks like the two sets of words are in the wrong boxes. The printed words from under the scratch panel go in the FIRST box, and the handwritten words go in the SECOND box. Swap them and try again.','bad');
+      }else{
+        log('showOut','The words from under the scratch panel do not match this card. Re-check the scratched-off words one at a time, and make sure the card code above belongs to the card you are holding.','bad');
+      }
       return;
     }
     try{
@@ -444,7 +482,7 @@ function init(){
       const utxos = (await getUtxos(addr)).utxos;
       const total = utxos.reduce((s,u)=>s+u.value,0);
       const bPend = splitConfirmed(utxos).pend;
-      if(total > 0) log('balFlowOut','This card holds '+sats(total)+' sats ('+btcStr(total)+' BTC)'+(bPend > 0 ? ', of which '+sats(bPend)+' sats arrived recently and are still confirming' : '')+'. Keep the panel sealed until you are ready to claim.','ok');
+      if(total > 0) log('balFlowOut','This card holds '+sats(total)+' satoshis ("sats"), tiny units of bitcoin ('+btcStr(total)+' BTC)'+(bPend > 0 ? ', of which '+sats(bPend)+' sats arrived recently and are still confirming' : '')+'. Keep the panel sealed until you are ready to claim.','ok');
       else log('balFlowOut','There is no bitcoin on this card right now. If it was funded in the last hour, the network may still be processing it, check again soon. If the card was claimed before, the bitcoin has already been moved.');
     }catch(e){ log('balFlowOut','Could not check: '+e.message,'bad'); }
   });
