@@ -45,7 +45,7 @@ loads('bitcard: with a space after the colon',   'bitcard: ' + REC, 999);
 // --- TWO DIFFERENT CARDS IN ONE PASTE MUST FAIL LOUDLY ---
 // Silently choosing one lets a buyer write their words on the card in their hand while funding an address
 // derived from the other card's key half. That is unrecoverable, so ambiguity is never resolved by guessing.
-const VEC = 'AQABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHs';
+const VEC = 'AQABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAABYAs';
 const VEC_URL = 'https://bitcards.xyz/app.html#' + VEC;
 const ambiguous = (name, input) => {
   let msg = null;

@@ -12,8 +12,9 @@ import { utf8ToBytes } from '@noble/hashes/utils';
 import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 import * as btc from '@scure/btc-signer';
-import { hex as hexlib, base64urlnopad as b64u, base58 } from '@scure/base';
+import { hex as hexlib, base64urlnopad as b64u, base64 as b64std, base58 } from '@scure/base';
 import { NET, ACTIVE } from './config.js';        // crypto/display params (no URLs). Network layer + node URLs live in net.js.
+import { KNOWN_BATCH } from './known-batch.js';   // public: truncated hashes of the keys we actually printed
 
 export { secp, sha256, utf8ToBytes, bip39, wordlist, btc, hexlib, b64u, NET, ACTIVE };
 
@@ -93,6 +94,27 @@ export function parseCard(uri){
   return { P1hex, serial };
 }
 export const parseAndVerifyCard = parseCard; // back-compat alias for existing callers
+
+// ---- known-batch check: the missing checksum, retrofitted without reprinting ----
+// A v1 record carries no checksum. Roughly 40% of single-character corruptions of a card code still decode
+// to a structurally valid record holding a DIFFERENT valid public key, and the giving flow would then show
+// a perfectly normal deposit address that no key on earth opens. QR scanning is not the risk (Reed-Solomon
+// either decodes correctly or fails); hand-typing and OCR are.
+// We cannot add a checksum to printed cards, but we do know the real public key for every card we made.
+// Returns 'ok' | 'mismatch' | 'unknown'. 'unknown' is NOT a failure: cards outside our range must keep
+// working, or this stops being an open standard and starts being a permission slip from us.
+export function knownCardStatus(P1hex, serial){
+  const B = KNOWN_BATCH;
+  if(!B || !Number.isInteger(serial) || serial < B.startSerial || serial > B.endSerial) return 'unknown';
+  let blob;
+  try{ blob = b64std.decode(B.hashes); }catch(e){ return 'unknown'; }
+  const off = (serial - B.startSerial) * B.trunc;
+  if(off + B.trunc > blob.length) return 'unknown';
+  let want;
+  try{ want = sha256(hexlib.decode(P1hex)).slice(0, B.trunc); }catch(e){ return 'mismatch'; }
+  for(let i = 0; i < B.trunc; i++) if(blob[off + i] !== want[i]) return 'mismatch';
+  return 'ok';
+}
 
 // ---- FROZEN VECTOR: the shipped build's anchor to the PUBLISHED standard ----
 // A self-test built from random input only proves the build agrees with itself. If any step of

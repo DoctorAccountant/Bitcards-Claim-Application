@@ -6,7 +6,7 @@
 // It NEVER touches the network: imports only pure crypto + DOM helpers from core.js (no getUtxos / broadcastTx / fetch),
 // page CSP is connect-src 'none'. Works with EXISTING v0.4 cards unchanged (public record in, no card change needed).
 // Copy rules: no em dashes; JS single-quoted strings avoid apostrophes.
-import { $, log, NET, bip39, wordlist, halfScalar, pubOfScalar, setupAddress, combine, parseAndVerifyCard, normCardInput, normWords, toWIF, hexlib, showBuildHash, verifyFrozenVector } from './core.js';
+import { $, log, NET, bip39, wordlist, halfScalar, pubOfScalar, setupAddress, combine, parseAndVerifyCard, normCardInput, normWords, toWIF, hexlib, showBuildHash, verifyFrozenVector, knownCardStatus } from './core.js';
 
 window.addEventListener('error', e => { const s=document.getElementById('status'); if(s) s.textContent='BUNDLE ERROR: '+(e.message||(e.error&&e.error.message)||e); });
 
@@ -87,8 +87,19 @@ function init(){
     $('modeOpen').classList.toggle('hide', which !== null);
     try{ window.scrollTo(0,0); }catch(e){}
   };
+  // v1 records carry no checksum, so a mistyped code can decode to a valid card holding a different key.
+  // For cards we made we know the real key, so a corrupted code is caught here rather than at funding time.
+  const CARD06 = 'This code is not quite right. It looks like a card code, but it does not match the card we made with that number, so one character is probably wrong. Do not send any bitcoin using it. Scan the QR on the back of the card instead of typing the code. [CARD-06]';
   const requireCard = () => {
-    try{ return parseAndVerifyCard(normCardInput($('cardUri').value)); }
+    try{
+      const c = parseAndVerifyCard(normCardInput($('cardUri').value));
+      if(knownCardStatus(c.P1hex, c.serial) === 'mismatch'){
+        $('cardStatus').textContent = CARD06;
+        try{ $('cardUri').scrollIntoView({behavior:'smooth', block:'center'}); }catch(err){}
+        return null;
+      }
+      return c;
+    }
     catch(e){
       $('cardStatus').textContent = 'First paste the card code above, or the whole link from scanning the card QR.';
       try{ $('cardUri').scrollIntoView({behavior:'smooth', block:'center'}); }catch(err){}
@@ -104,7 +115,12 @@ function init(){
   function refreshCardStatus(){
     const val = $('cardUri').value.trim();
     if(!val){ $('cardStatus').textContent = ''; return; }
-    try{ const c = parseAndVerifyCard(normCardInput(val)); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; }
+    try{
+      const c = parseAndVerifyCard(normCardInput(val));
+      $('cardStatus').textContent = knownCardStatus(c.P1hex, c.serial) === 'mismatch'
+        ? CARD06
+        : '✓ card loaded (No. '+c.serial+')';
+    }
     catch(e){ $('cardStatus').textContent = /multiple cards/.test(e.message)
       ? 'More than one card link was pasted, so we cannot tell which card you are holding. Clear the box and paste only the link for the card in your hand.'
       : 'That code is not complete yet. Paste the whole card code, or the whole link from scanning the QR.'; }

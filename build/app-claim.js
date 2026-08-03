@@ -4,7 +4,7 @@
 // Copy rules: no em dashes anywhere; JS strings avoid apostrophes (use full words); HTML may use contractions.
 import { $, log, bip39, wordlist, btc, BTCNET, NET, hexlib, b64u,
   parseAndVerifyCard, normCardInput, normWords, buildRecord, halfScalar, pubOfScalar, setupAddress, combine, bigToBytes32, showBuildHash,
-  estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed, verifyFrozenVector } from './core.js';
+  estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed, verifyFrozenVector, knownCardStatus } from './core.js';
 import { getUtxos, feeRate, broadcastTx } from './net.js';   // network layer (online app only)
 import { ENDPOINTS } from './endpoints.js';                  // node URLs (online app only); the offline tool never imports this
 
@@ -67,7 +67,14 @@ let lastRate = null;   // sat/vB used for the last sweep, so "speed up" can bid 
 let lastUtxos = null;  // the exact inputs the reviewed sweep spends; an RBF bump must re-spend THESE (mempool marks them spent)
 let busy = false;      // single in-flight guard: blocks double-clicks and concurrent sign/broadcast
 
-function loadCard(){ return parseAndVerifyCard(normCardInput($('cardUri').value)); }
+// Fail CLOSED here, not merely by disabling the route buttons. Hiding a button is presentation; every flow
+// in this file goes through loadCard, so a card code that does not match the card we printed with that
+// number must be unusable no matter which entry point is reached or how.
+function loadCard(){
+  const c = parseAndVerifyCard(normCardInput($('cardUri').value));
+  if(knownCardStatus(c.P1hex, c.serial) === 'mismatch') throw new Error('card code does not match card No. '+c.serial+' [CARD-06]');
+  return c;
+}
 function sats(n){ return n.toLocaleString('en-US'); }
 function btcStr(n){ return (n/1e8).toFixed(8); }
 // numbered two-column layout (1-6 left, 7-12 right) matching the write lines printed on the card
@@ -206,13 +213,19 @@ function init(){
     if(!val){ $('cardStatus').textContent = ''; setChip(''); setRoutesEnabled(false); showCardBox(true); return; }
     try{
       const c = loadCard();
+      // The v1 record has no checksum, so a single mistyped character can decode to a perfectly valid card
+      // holding a different key. Nothing later in the flow would notice: setup would show a normal deposit
+      // address that no key opens. For cards we actually made we know the real key, so check it here, at
+      // the only point where the mistake is still free to fix.
       $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; setChip('No. '+c.serial); setRoutesEnabled(true);
       showCardBox(false);
     }catch(e){
       showCardBox(true);
       const partial = /^(bitcard:)?[A-Za-z0-9_-]*$/.test(val) && val.replace(/^bitcard:/,'').length < 55;
       $('cardStatus').textContent =
-        /multiple cards/.test(e.message)
+        /CARD-06/.test(e.message)
+          ? 'This code is not quite right. It looks like a card code, but it does not match the card we made with that number, so one character is probably wrong. Do not send any bitcoin using it. Scan the QR on the back of the card with your phone camera instead of typing the code. [CARD-06]'
+        : /multiple cards/.test(e.message)
           ? 'More than one card link was pasted, so we cannot tell which card you are holding. Clear the box and paste only the link for the card in your hand, or scan its QR. [CARD-05]'
         : partial
           ? 'That code is not complete yet. Paste the whole code, or scan the QR on the back of the card with your phone camera.'
@@ -394,7 +407,9 @@ function init(){
     if(r2.err){ log('showOut', r2.err, 'bad'); return; }
     let card;
     try{ card = loadCard(); }
-    catch(e){ log('showOut','This card code is not valid. Re-scan the QR on the back of the card, then try again. [CARD-01]','bad'); return; }   // audit: fail closed, never skip the pairing check
+    catch(e){ log('showOut', /CARD-06/.test(e.message)
+        ? 'This card code does not match the card we made with that number, so one character is probably wrong. Nothing was sent. Scan the QR on the back of the card instead of typing the code. [CARD-06]'
+        : 'This card code is not valid. Re-scan the QR on the back of the card, then try again. [CARD-01]','bad'); return; }   // audit: fail closed, never skip the pairing check
     // the QR commits the hidden half: catch a mispaired or misread panel deterministically
     if(hexlib.encode(pubOfScalar(halfScalar(r1.m))) !== card.P1hex){
       // before blaming the card, check the commonest human error: the two sets typed into the wrong boxes.

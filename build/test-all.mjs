@@ -16,6 +16,7 @@ const SUITES = [
   ['test-recover.mjs',      [], 'python last-resort recovery agrees with the JS derivation'],
   ['test-derivation-differential.mjs', [], 'RANDOM mnemonics agree across the JS and python implementations'],
   ['test-batch-verifier.mjs', [], 'the printed-batch verifier is no more permissive than the app'],
+  ['test-known-batch.mjs',    [], 'corrupted card codes are caught before anyone funds them'],
 ];
 
 let failed = [];

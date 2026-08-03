@@ -47,7 +47,7 @@ function witnessValid(rawHex, expectPubHex, utxos){
 
 const BUNDLE = process.argv[2] || 'app-claim.bundle.js';
 const CARD_999 = 'AQABAQOrOxUP6VvN0TIX0jhu801U5qRPbtBVoprrQ1nfUazLJgAAA-c';
-const CARD_VEC = 'AQABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHs';
+const CARD_VEC = 'AQABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAABYAs';
 const TXID = 'a'.repeat(64);
 
 const IDS = ['netbadge','cardChip','cardBox','cardUri','cardStatus','changeCard','pathGive','pathClaim','pathBal',
@@ -210,6 +210,33 @@ async function claimToReview(net){
   els.bcastBtn.onclick(); await tick(150);
   ok('claim: forced send after edit does NOT broadcast', !/Sent\./i.test(els.bcastOut.textContent), els.bcastOut.textContent.slice(0,90));
   ok('claim: forced send tells user to review again', /Review before sending/i.test(els.bcastOut.textContent));
+}
+
+// ---------------- 1b. A corrupted card code must be unusable, not merely discouraged ----------------
+// v1 records carry no checksum, so a mistyped code can decode to a valid card holding a different key.
+// Disabling the route buttons is presentation only: this harness calls handlers directly, exactly as a
+// determined user or a scripted page could. The refusal has to live in the code path.
+{
+  const { els } = boot({ utxos:[utxo(200000,true)] });
+  // CARD_VEC carries serial 90123, outside the minted range, so it must behave normally
+  els.cardUri.value = CARD_VEC; els.cardUri.dispatch('input');
+  ok('unminted serial: card outside our range still works', !els.pathClaim.disabled, els.cardStatus.textContent);
+
+  // now claim a serial we DID mint while carrying a key we did not print
+  const rec = [...Buffer.from(CARD_VEC.replace(/-/g,'+').replace(/_/g,'/'), 'base64')];
+  rec[37]=0; rec[38]=0; rec[39]=0; rec[40]=123;                       // serial 123, inside 101..400
+  const forged = Buffer.from(rec).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  els.cardUri.value = forged; els.cardUri.dispatch('input');
+  ok('minted serial + wrong key: routes are disabled', els.pathClaim.disabled, els.cardStatus.textContent);
+  ok('minted serial + wrong key: explains the code is wrong', /does not match the card we made/.test(els.cardStatus.textContent), els.cardStatus.textContent.slice(0,140));
+  ok('minted serial + wrong key: carries the support code', /CARD-06/.test(els.cardStatus.textContent));
+
+  // and the flow must refuse even when the handler is invoked directly, bypassing the disabled attribute
+  els.pathClaim.onclick();
+  els.claimP1.value = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+  els.claimP2.value = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
+  els.showBtn.onclick(); await tick(150);
+  ok('minted serial + wrong key: fails closed when called directly', !/holds/.test(els.showOut.textContent), els.showOut.textContent.slice(0,120));
 }
 
 // ---------------- 4b. CLAIM: a deposit arriving between Review and Send must not be left behind ----------
