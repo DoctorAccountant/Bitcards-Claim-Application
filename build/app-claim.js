@@ -19,8 +19,8 @@ function checkWords(raw, boxName){
   const m = normWords(raw);
   const words = m ? m.split(' ') : [];
   if(words.length !== 12) return { err: 'The '+boxName+' has '+words.length+(words.length===1?' word':' words')+', it needs exactly 12. Type them in order with a space between each one.' };
-  for(let i=0;i<12;i++){ if(wordlist.indexOf(words[i]) < 0) return { err: 'Word '+(i+1)+' in the '+boxName+' ("'+words[i]+'") is not a recognized recovery word. That is almost always a typo or a misread letter, so nothing is lost. Look at word '+(i+1)+' on the card again and retype it.' }; }
-  try{ halfScalar(m); }catch(e){ return { err: 'The 12 words in the '+boxName+' are not a valid set. Usually one word is misspelled, or two words are in the wrong order. Your bitcoin is safe on the card and nothing has been sent. Check their spelling and order against the card, one word at a time.' }; }
+  for(let i=0;i<12;i++){ if(wordlist.indexOf(words[i]) < 0) return { err: 'Word '+(i+1)+' in the '+boxName+' ("'+words[i]+'") is not recognized. That is almost always a typo or a misread letter, so nothing is lost. Look at word '+(i+1)+' on the card again and retype it.' }; }
+  try{ halfScalar(m); }catch(e){ return { err: 'The phrase in the '+boxName+' is not a valid 12-word set. Usually one word is misspelled, or two words are in the wrong order. Your bitcoin is safe on the card and nothing has been sent. Check their spelling and order against the card, one word at a time.' }; }
   return { m };
 }
 
@@ -82,7 +82,7 @@ async function checkClaimBalance(){
   }
   const total = utxos.reduce((s,u)=>s+u.value,0);
   if(total <= 0){
-    $('showOut').textContent = 'No bitcoin is showing on this card right now. Nothing was moved by this check. First, compare both sets of words with the card one at a time, since a single wrong letter points at a different, empty card, then tap Try again. If the words are right: a payment sent very recently can take a while to appear, so wait a few minutes; or ask whoever gave you the card whether the bitcoin was sent; or the card may have been claimed before.';
+    $('showOut').textContent = 'No bitcoin is showing on this card right now. Nothing was moved by this check. First, compare both sets of words with the card one word at a time, then tap Try again. If the words are correct, the payment may have been sent very recently, may not have been sent yet, or the card may have been claimed before.';
     $('retryBal').classList.remove('hide');
     $('sendSection').classList.add('hide');
     return;
@@ -161,8 +161,10 @@ function init(){
   const isMain = NET.hrp === 'bc';
   document.title = 'Bitcard ' + NET.label;
   const nb = $('netbadge');
-  if(nb){ nb.textContent = isMain ? 'Uses real bitcoin' : 'PRACTICE ONLY, not real bitcoin';
-    nb.style.cssText = 'font-size:11px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap;' + (isMain ? 'background:#E07B12;color:#fff' : 'background:#eee;color:#555'); }
+  // On mainnet the badge said nothing a customer asked, and hinting "real" invites "as opposed to?".
+  // It only earns its place as a warning, so it appears for practice builds only.
+  if(nb){ nb.textContent = isMain ? '' : 'PRACTICE ONLY, not real bitcoin';
+    if(!isMain) nb.style.cssText = 'font-size:11px;font-weight:700;border-radius:999px;padding:5px 11px;white-space:nowrap;background:#B3341F;color:#fff'; }
 
   // scan-and-go: a scanned card arrives in the URL fragment (never sent to any server)
   try{ const h = (location.hash||'').replace(/^#/,'').trim(); if(h){ $('cardUri').value = h.startsWith('bitcard:') ? h : ('bitcard:'+h); } }catch(e){}
@@ -177,13 +179,22 @@ function init(){
   function setRoutesEnabled(on){
     ['pathGive','pathClaim','pathBal'].forEach(id => { const el = $(id); if(el) el.disabled = !on; });
   }
+  // Once a card is loaded the serial in the header is the confirmation, so the paste box collapses
+  // to a quiet link. Someone who scanned never needed the box; someone without a card still gets it.
+  function showCardBox(on){
+    const box = $('cardBox'), link = $('changeCard');
+    if(box) box.classList.toggle('hide', !on);
+    if(link) link.classList.toggle('hide', on);
+  }
   function refreshCardStatus(){
     const val = $('cardUri').value.trim();
-    if(!val){ $('cardStatus').textContent = ''; setChip(''); setRoutesEnabled(false); return; }
+    if(!val){ $('cardStatus').textContent = ''; setChip(''); setRoutesEnabled(false); showCardBox(true); return; }
     try{
       const c = loadCard();
       $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; setChip('No. '+c.serial); setRoutesEnabled(true);
+      showCardBox(false);
     }catch(e){
+      showCardBox(true);
       // distinguish "you are part way through pasting" from "this is not a card code at all"
       const partial = /^(bitcard:)?[A-Za-z0-9_-]*$/.test(val) && val.replace(/^bitcard:/,'').length < 55;
       $('cardStatus').textContent = partial
@@ -216,6 +227,7 @@ function init(){
   $('pathGive').onclick = ()=> go('giveFlow');
   $('pathClaim').onclick = ()=> go('claimFlow');
   $('pathBal').onclick = ()=> go('balFlow');
+  $('changeCard').onclick = ()=>{ showCardBox(true); const el=$('cardUri'); if(el){ el.focus(); el.select(); } };
   // Back from GIVE keeps the generated words on purpose: they may already be written on a physical card,
   // and silently discarding them would strand any bitcoin later sent to that card. The button label says so.
   $('giveBack').onclick = ()=> show('chooser');
@@ -328,7 +340,7 @@ function init(){
         $('fundOut').textContent = 'Send bitcoin to this address:\n\n  '+setup.addr;
         $('fundBox').classList.remove('hide');
         $('verifyWords').value = '';   // audit #11: do not keep the half on screen after it has been checked
-        $('setupOut').textContent = '✓ Your 12 words are written on the card and verified. They were cleared from this screen for privacy; the card is now the only copy.';   // audit #11: the full word grid must not linger on screen
+        $('setupOut').textContent = '✓ Your 12 words are written on the card and verified. They were removed from this screen for privacy. Keep the card safe.';   // audit #11: the full word grid must not linger on screen
       }else{
         log('verifyOut','These do not match the 12 words shown above. Nothing is broken and no bitcoin is at risk yet. Check two things: that you typed them in the same order, and that what you wrote on the card really is what is shown above. If the card is what is wrong, fix the card. Do not add any bitcoin until this says the words match.','bad');
         $('fundBox').classList.add('hide');
@@ -355,9 +367,9 @@ function init(){
   // ---------- CLAIM FLOW ----------
   $('showBtn').onclick = ()=> run('showBtn', async ()=>{
     // boxes are validated in on-screen order, which matches the card's top-to-bottom layout: sealed half first
-    const r1 = checkWords($('claimP1').value, 'scratched-off words');
+    const r1 = checkWords($('claimP1').value, 'scratch-panel box');
     if(r1.err){ log('showOut', r1.err, 'bad'); return; }
-    const r2 = checkWords($('claimP2').value, 'handwritten words');
+    const r2 = checkWords($('claimP2').value, 'handwritten box');
     if(r2.err){ log('showOut', r2.err, 'bad'); return; }
     let card;
     try{ card = loadCard(); }

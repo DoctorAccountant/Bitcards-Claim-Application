@@ -82,8 +82,10 @@
   .choice .txt{ min-width:0; }
   .choice b{ display:block; font-family:var(--disp); font-size:16.5px; font-weight:600; letter-spacing:-.01em; }
   .choice span{ display:block; font-weight:400; color:var(--muted); font-size:13.5px; margin-top:2px; }
-  .choice.quiet{ border-style:dashed; padding:13px 18px; box-shadow:none; }
-  .choice.quiet b{ font-size:14.5px; }
+  /* quiet text link: for secondary routes that should not compete with the two real choices */
+  .linky{ background:none; border:0; color:var(--muted); text-decoration:underline; text-underline-offset:3px;
+    font-size:14px; font-weight:500; width:auto; min-height:44px; padding:11px 4px; margin:8px auto 0; display:block; }
+  .linky:hover{ background:none; color:var(--text); }
 
   /* outputs stay monospace: the 12-word grid is column-aligned with padding and addresses must be scannable.
      Prose messages are rendered inside .ok/.bad spans, which switch to the body face below. */
@@ -133,44 +135,43 @@
   </header>
   <p class="tag">A gift of bitcoin. No Bitcard app or account required.</p>
 
-  <!-- CHOOSER -->
+  <!-- CHOOSER. The card box is only prominent when there is no card: a scanned arrival already has one,
+       and the serial in the header is the confirmation, so the box collapses to a quiet link. -->
   <div id="chooser">
-    <div class="card">
-      <label for="cardUri">Scan the QR on the back of your card with your phone's camera app, or paste the card code here</label>
+    <div class="card" id="cardBox">
+      <label for="cardUri">Scan the QR on the back of your card, or paste the card code here</label>
       <input id="cardUri" placeholder="bitcard:..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       <div id="cardStatus" class="out" aria-live="polite"></div>
     </div>
-    <p class="lead" style="margin:20px 0 0">First, which one are you?</p>
-    <button id="pathGive" class="choice"><span class="ico">&#x1F381;</span><span class="txt"><b>I'm giving this card</b><span>Put bitcoin on it, then give it.</span></span></button>
-    <button id="pathClaim" class="choice"><span class="ico">&#x1F4B0;</span><span class="txt"><b>This card was given to me</b><span>Move the bitcoin on it to your own wallet.</span></span></button>
-    <button id="pathBal" class="choice quiet"><span class="txt"><b>Just checking the balance?</b><span>You only need the 12 handwritten words. Keep the panel sealed.</span></span></button>
+    <button type="button" id="pathGive" class="choice"><span class="ico">&#x1F381;</span><span class="txt"><b>I'm giving this card</b><span>Put bitcoin on it, then give it.</span></span></button>
+    <button type="button" id="pathClaim" class="choice"><span class="ico">&#x1F4B0;</span><span class="txt"><b>This card was given to me</b><span>Move the bitcoin on it to your own wallet.</span></span></button>
+    <button type="button" id="pathBal" class="linky">Just checking the balance?</button>
+    <button type="button" id="changeCard" class="linky hide">Using a different card?</button>
   </div>
 
   <!-- GIVE FLOW -->
   <div id="giveFlow" class="hide">
-    <button type="button" class="back" id="giveBack">&larr; back, your current words are kept on this phone</button>
-    <p class="lead">Three steps: write the words, check them, add bitcoin. (Was this card given to you, with words already written on it? Go back and choose: This card was given to me.)</p>
+    <button type="button" class="back" id="giveBack">&larr; back, keeps these words while this page stays open</button>
     <div class="card">
       <div class="stepline"><span class="stepnum">1</span><h2>Get your 12 words</h2></div>
-      <p class="lead">Tap the button and we'll create 12 words. Write them on the card's blank "your half" lines. Each tap makes a fresh set, so don't tap again after you've written them down.</p>
+      <p class="lead">Write them on the card's blank "your half" lines. Each tap makes a fresh set, so do not tap again once you have written them down.</p>
       <button id="setupBtn">Make my 12 words</button>
       <div id="setupOut" class="out" aria-live="polite"></div>
     </div>
     <div class="card">
       <div class="stepline"><span class="stepnum">2</span><h2>Double-check what you wrote</h2></div>
-      <p class="lead">Re-type the 12 words exactly as you wrote them on the card, in order, with a space between each word (extra spaces or capitals are fine). If they match, you know the card itself can unlock the bitcoin later.</p>
+      <p class="lead">Re-type the 12 words exactly as they appear on the card. This proves the card can unlock the bitcoin later.</p>
       <textarea id="verifyWords" rows="3" placeholder="Type the 12 words with a space between each one" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
       <button id="verifyBtn" class="ghost">Check my words</button>
-      <div id="verifyOut" class="out" role="alert" aria-live="assertive"></div>
+      <div id="verifyOut" class="out" aria-live="polite"></div>
     </div>
     <div class="card hide" id="fundBox">
       <div class="stepline"><span class="stepnum">3</span><h2>Add bitcoin, seal, give</h2></div>
-      <p class="lead">From your own wallet, send the amount you want to give to the address below. Then use the button underneath to check on it: once it says the payment is confirmed, seal the words and give the card.</p>
-      <div class="note"><b>How much to put on.</b> A network fee comes off when the card is claimed, and that fee rises and falls with how busy bitcoin is: a few hundred sats when quiet, several thousand when busy. To be comfortable in any conditions, put at least 50,000 sats on the card. Below roughly 20,000 the card can be temporarily unclaimable during a busy spell. Nothing is lost when that happens, it just has to wait for fees to drop, or be claimed with the offline tool where the recipient picks the fee.</div>
+      <p class="lead">Send the gift from your own wallet to the address below. When the check underneath says the payment is confirmed, seal the words and give the card.</p>
       <div id="fundOut" class="out"></div>
       <button id="arriveBtn" class="ghost">Check if it arrived</button>
       <div id="arriveOut" class="out" aria-live="polite"></div>
-      <div class="note">Tip for whoever you give it to: they scan the card, scratch the panel, and type both sets of words. No Bitcard app or account is needed. To receive the bitcoin they will want a bitcoin wallet app or an exchange account of their own, which is free to set up.</div>
+      <div class="note"><b>How much to put on.</b> Satoshis ("sats") are tiny units of bitcoin. A transaction fee is deducted when the card is claimed, and it rises and falls with how busy bitcoin is: a few hundred sats when quiet, several thousand when busy. Put at least 50,000 sats on the card to be comfortable in any conditions. Below roughly 20,000 the card can be temporarily unclaimable during a busy spell. Nothing is lost when that happens, it waits for fees to drop.</div>
     </div>
   </div>
 
@@ -178,12 +179,8 @@
   <div id="claimFlow" class="hide">
     <button type="button" class="back" id="claimBack">&larr; back, this clears what you typed</button>
     <div class="card">
-      <h2>Claim your bitcoin</h2>
-      <p class="lead">Let's see what's on this card, then move it into a wallet of your own, one step at a time. Nothing moves until you tick a box and confirm at the final step, and you can start over at any point before that.</p>
-    </div>
-    <div class="card">
       <div class="stepline"><span class="stepnum">1</span><h2>Enter the words from the card</h2></div>
-      <p class="lead">You'll need both sets of 12 words from the back of the card, in the same order they appear on it. Type each set in order, with a space between each word (extra spaces or capitals are fine).</p>
+      <p class="lead">Both sets of 12 words are on the back of the card. Type each set in the order it appears.</p>
       <div class="warn"><b>Before you scratch:</b> do this on your own phone, somewhere private. Once the panel is off it stays off, and anyone who sees or photographs both sets of words can take the bitcoin.</div>
       <label for="claimP1">The 12 printed words under the scratch panel (scratch it off now)</label>
       <textarea id="claimP1" rows="3" placeholder="Type the 12 words with a space between each one" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
@@ -192,21 +189,21 @@
       <textarea id="claimP2" rows="3" placeholder="Type the 12 words with a space between each one" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
       <div class="wc" id="wc2"></div>
       <button id="showBtn">Show my bitcoin</button>
-      <div id="showOut" class="out" role="alert" aria-live="assertive"></div>
+      <div id="showOut" class="out" aria-live="polite"></div>
       <button id="retryBal" class="ghost hide">Try again</button>
     </div>
     <div class="card hide" id="sendSection">
       <div class="stepline"><span class="stepnum">2</span><h2>Send it to your wallet</h2></div>
       <label for="dest">Your wallet address</label>
-      <p class="help">You need somewhere of your own to put the bitcoin: a bitcoin wallet app, or an exchange account you already use. Open it, tap Receive, and copy the address it shows into this box. It usually starts with bc1. An address is like an account number, not a password, so it is fine to copy and paste. Check it after pasting though: some phone and computer viruses swap a copied address for their own. Nowhere to send it yet? Tap the button below the box.</p>
+      <p class="help">Open your bitcoin wallet app or an exchange account you already use, tap Receive, and copy the address into this box. It usually starts with bc1.</p>
       <textarea id="dest" rows="2" placeholder="bc1..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
       <button id="genDest" class="ghost">I have nowhere to send it yet</button>
       <div id="destOut" class="out" aria-live="polite"></div>
       <button id="reviewBtn">Review before sending</button>
-      <div id="claimOut" class="out" role="alert" aria-live="assertive"></div>
+      <div id="claimOut" class="out" aria-live="polite"></div>
       <label class="hide" id="confirmRow"><input type="checkbox" id="destConfirm"> I compared this address with my wallet app and it matches.</label>
       <button id="bcastBtn" class="hide">Send my bitcoin</button>
-      <div id="bcastOut" class="out" role="alert" aria-live="assertive"></div>
+      <div id="bcastOut" class="out" aria-live="polite"></div>
       <button id="bumpBtn" class="ghost hide">Nothing after an hour? Nudge it along</button>
       <div id="bumpOut" class="out" aria-live="polite"></div>
     </div>
@@ -231,7 +228,7 @@
       <li>Your 12 words stay on this device. They are never sent anywhere.</li>
       <li>Public bitcoin services can see the card's address and your internet address, but never your words or your name.</li>
       <li>Bitcoin payments are public and permanent. Anyone who knows this card's address can see which wallet you moved the money to.</li>
-      <li>For larger amounts, or to avoid relying on this website at all, use the offline version at <b>bitcards.xyz/offline.html</b>.</li>
+      <li>For larger amounts, or to avoid relying on this website at all, use the <a href="https://bitcards.xyz/offline.html">offline version</a>.</li>
     </ul>
     <details style="margin-top:14px">
       <summary>Advanced technical details</summary>
