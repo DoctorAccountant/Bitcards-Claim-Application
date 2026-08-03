@@ -22,6 +22,7 @@ import { NET } from './config.js';
 // buildRecord emits v2 (46 bytes, 5-byte checksum over the first 41), so every batch from here on is
 // self-checking: a mistyped card code fails its own checksum with no embedded batch table needed.
 import { halfScalar, verifyFrozenVector, buildRecord, parseAndVerifyCard } from './core.js';
+import { KNOWN_BATCH } from './known-batch.js';
 
 const APP_URL = 'https://bitcards.xyz/app.html';   // the live, audited claim app the QR opens
 const n = secp.CURVE.n;
@@ -54,6 +55,23 @@ if (START + COUNT - 1 >= 4294000000) { console.error('REFUSING: serials >= 42940
 
 { const v = verifyFrozenVector();
   if(!v.ok){ console.error('REFUSING: this tree cannot reproduce the published frozen vector (expected '+v.expected+', got '+v.got+'). Derivation has drifted; do not mint.'); process.exit(1); } }
+
+// --- serial reuse: check against the SHIPPED card table, not just this folder ---
+// The manifest scan below only sees files in the chosen output directory, so minting into a fresh folder
+// silently bypassed it. The embedded table is the authoritative record of what has been published, travels
+// with the code, and cannot be sidestepped by choosing a different path. Reusing a serial does not just
+// duplicate a number: two physical cards would share it, and the older one is already in customers' hands.
+{
+  const segs = (KNOWN_BATCH && KNOWN_BATCH.segments) || [];
+  for(const s of segs){
+    if(START <= s.end && START + COUNT - 1 >= s.start){
+      console.error('REFUSING: serials ' + START + '-' + (START + COUNT - 1) + ' overlap serials ' + s.start + '-' + s.end +
+        ' which are already minted and published in the shipped card table.\n' +
+        'Serial ranges are never reused. Take the next free serial from serial-ledger.md.');
+      process.exit(1);
+    }
+  }
+}
 
 // --- guardrail: never write secrets into a cloud-synced / version-tracked location (audit finding #3) ---
 const lower = OUT_DIR.toLowerCase();
@@ -132,4 +150,4 @@ console.log('CSV sha256:       '+csvHash);
 console.log('CSV:              '+csvPath);
 console.log('QC manifest:      '+manPath);
 console.log('\nsample row (words masked): '+[cards[0].serial, ...Array(12).fill('***'), cards[0].qrUrl].join(','));
-console.log('\n*** The CSV holds 100 secret half-keys. Encrypt to send; destroy after the run. See HANDLING.txt. ***');
+console.log('\n*** The CSV holds '+COUNT+' secret half-keys. Encrypt to send; destroy after the run. See HANDLING.txt. ***');

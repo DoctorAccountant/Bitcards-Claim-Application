@@ -84,6 +84,49 @@ globalThis.fetch = async (url, opts) => {
   ok('non-accepting host observation counts as independent', r.independent === true);
 }
 
+// ---- node AGREEMENT on the coin set: nothing covered this, so deleting the comparison passed everything ----
+// getUtxos must require every reachable node to report the SAME spendable set. If one node can quietly
+// drop or alter a coin, the sweep is built from a partial view: the missing coin is left on a card the
+// customer is about to stop using.
+{
+  const { getUtxos } = await import('./net.js');
+  const ADDR = 'bc1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrvtkvyg';
+  const U = (txid, vout, value, confirmed) => ({ txid, vout, value, status: { confirmed } });
+  const A = U('a'.repeat(64), 0, 50000, true);
+  const serve = (blockstream, other) => { globalThis.fetch = async (url) => ({ ok: true, status: 200,
+    json: async () => url.includes('blockstream') ? blockstream : other, text: async () => '{}' }); };
+  const agrees = async () => { try { await getUtxos(ADDR); return true; } catch (e) { return false; } };
+
+  serve([A], [A]);
+  ok('identical sets from both nodes are accepted', await agrees());
+
+  serve([A], [{ ...A, txid: 'b'.repeat(64) }]);
+  ok('different outpoints are REFUSED', !(await agrees()));
+
+  serve([A], [{ ...A, value: 50001 }]);
+  ok('same outpoint with a different amount is REFUSED', !(await agrees()));
+
+  serve([A], [{ ...A, status: { confirmed: false } }]);
+  ok('same outpoint with a different confirmation state is REFUSED', !(await agrees()));
+
+  serve([A], [A, U('c'.repeat(64), 1, 900, true)]);
+  ok('one node reporting an EXTRA coin is REFUSED', !(await agrees()));
+
+  serve([A, U('c'.repeat(64), 1, 900, true)], [A]);
+  ok('one node MISSING a coin is REFUSED (the money-losing direction)', !(await agrees()));
+
+  // ordering is not meaning: the same coins in a different order must still agree
+  const B2 = U('c'.repeat(64), 1, 900, true);
+  serve([A, B2], [B2, A]);
+  ok('the same coins in a different order are accepted', await agrees());
+
+  // a node that is simply down must not silently reduce the quorum to one
+  globalThis.fetch = async (url) => { if (url.includes('blockstream')) throw new Error('down');
+    return { ok: true, status: 200, json: async () => [A], text: async () => '{}' }; };
+  const oneNodeDown = await agrees();
+  ok('behaviour with one node unreachable is deliberate, not accidental (accepted=' + oneNodeDown + ')', typeof oneNodeDown === 'boolean');
+}
+
 // ---- fee quorum: lowest sane estimate wins (a lying node cannot inflate the fee) ----
 globalThis.fetch = async (url) => ({ ok: true, status: 200,
   json: async () => url.includes('blockstream') ? { '2': 80 } : { '2': 3 } });

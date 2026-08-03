@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import * as btc from '@scure/btc-signer';
 import { hex } from '@scure/base';
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
+import { halfScalar, combine } from './core.js';
 let lastRejectReason = null;
 
 // An honest node echoes back the txid of the transaction it was handed. The app requires that echo to
@@ -30,10 +31,17 @@ function witnessValid(rawHex, expectPubHex, utxos){
       const w = inp.finalScriptWitness;
       if(!w || w.length !== 2) return 'witness is not a 2-item P2WPKH stack';
       const [sigBytes, pubBytes] = w;
-      if(expectPubHex && hex.encode(pubBytes) !== expectPubHex) return 'witness pubkey is not the combined card key';
       const outpoint = hex.encode(inp.txid) + ':' + inp.index;
       const known = (utxos || []).find(u => u.txid + ':' + u.vout === outpoint);
       if(!known) return 'spends an output the chain does not have: ' + outpoint;
+      // THE CHECK THAT MAKES THE REST MEAN ANYTHING: the offered key must hash to the locking script of
+      // the output being spent. Without it the mock derives the scriptCode from the transaction's own
+      // witness, so a transaction signed with ANY key verifies against itself and passes. A real node
+      // takes the locking script from the chain, never from the spender.
+      if(!known.scriptPubKey) return 'mock utxo has no scriptPubKey, so the witness cannot be checked against it';
+      if(hex.encode(btc.p2wpkh(pubBytes).script) !== known.scriptPubKey)
+        return 'witness key does not match the locking script of the output being spent';
+      if(expectPubHex && hex.encode(pubBytes) !== expectPubHex) return 'witness pubkey is not the combined card key';
       // BIP143: for a P2WPKH input the scriptCode in the preimage is the P2PKH form
       // (0x1976a914{keyhash}88ac), NOT the witness program itself.
       const scriptCode = btc.p2pkh(pubBytes).script;
@@ -90,7 +98,7 @@ function boot(net = {}){
     if(opts && opts.method === 'POST'){
       if(net.rejectPost && net.rejectPost(url)) return { ok:false, status:400, text:async()=>'rejected by this node' };
       // behave like a real node: refuse anything that would not actually spend
-      const bad = net.skipWitnessCheck ? null : witnessValid(opts.body, net.expectPub, utxos);
+      const bad = net.skipWitnessCheck ? null : witnessValid(opts.body, net.expectPub || hex.encode(CARD_PUB), utxos);
       if(bad){ lastRejectReason = bad; return { ok:false, status:400, text:async()=>'non-mandatory-script-verify-flag: '+bad }; }
       const honest = txidOf(opts.body);
       return { ok:true, status:200, text:async()=> (net.broadcastTxid || honest || TXID) };
@@ -109,7 +117,13 @@ function boot(net = {}){
 let pass=0, fail=0;
 const ok = (n,c,d)=>{ c?pass++:(fail++,console.log('FAIL: '+n+(d!==undefined?'\n      got: '+JSON.stringify(d):''))); };
 const tick = ms => new Promise(r=>setTimeout(r,ms||60));
-const utxo = (v,conf)=>({ txid:'b'.repeat(64), vout:0, value:v, status:{confirmed:!!conf} });
+// The claim tests always open CARD_VEC with these two halves, so the address being spent is known here.
+// The mock chain must carry the real locking script for it, exactly as a node would.
+const CLAIM_P1 = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+const CLAIM_P2 = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
+const CARD_PUB = combine(halfScalar(CLAIM_P1), halfScalar(CLAIM_P2)).pub;
+const CARD_SPK = hex.encode(btc.p2wpkh(CARD_PUB).script);
+const utxo = (v,conf)=>({ txid:'b'.repeat(64), vout:0, value:v, status:{confirmed:!!conf}, scriptPubKey: CARD_SPK });
 
 // ---------------- 1. ROUTE GATING ----------------
 {
@@ -180,7 +194,11 @@ const utxo = (v,conf)=>({ txid:'b'.repeat(64), vout:0, value:v, status:{confirme
 }
 
 // ---------------- 4. CLAIM: destination edit after Review must invalidate the draft ----------------
-const DEST = 'bc1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrvtkvyg';
+// Deliberately NOT the card's own address. When the destination equalled the source, a build that paid the
+// card back to itself instead of to the recipient passed every assertion. This is the BIP173 test-vector
+// address (hash160 of the secp256k1 generator), unrelated to any card.
+const DEST = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
+const DEST_SPK = '0014751e76e8199196d454941c45d1b3a323f1433bd6';   // what the paying output MUST contain
 async function claimToReview(net){
   const { els } = boot(net || { utxos:[utxo(200000,true)] });
   els.cardUri.value = CARD_VEC; els.cardUri.dispatch('input');
@@ -208,8 +226,42 @@ async function claimToReview(net){
   // force a broadcast anyway
   els.destConfirm.checked = true;
   els.bcastBtn.onclick(); await tick(150);
-  ok('claim: forced send after edit does NOT broadcast', !/Sent\./i.test(els.bcastOut.textContent), els.bcastOut.textContent.slice(0,90));
+  ok('claim: forced send after edit does NOT broadcast', !/✓ Sent/.test(els.bcastOut.textContent), els.bcastOut.textContent.slice(0,90));
   ok('claim: forced send tells user to review again', /Review before sending/i.test(els.bcastOut.textContent));
+}
+
+// The test above changes the box AND fires the input handler, which clears the draft before Send is even
+// reached, so it never exercises the Send-time destination comparison. Removing that comparison entirely
+// left every test green. This changes the value WITHOUT dispatching input, which is the case a hostile
+// page or a stale autofill produces, and is the only path that reaches the final check.
+{
+  const els = await claimToReview();
+  els.dest.value = 'bc1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrvtkvyg';   // silently swapped, no input event
+  els.destConfirm.checked = true;
+  await els.bcastBtn.onclick(); await tick(200);
+  ok('silent destination swap: does NOT broadcast', !/✓ Sent/.test(els.bcastOut.textContent), els.bcastOut.textContent.slice(0,120));
+  ok('silent destination swap: says the address changed', /address changed after you reviewed/i.test(els.bcastOut.textContent), els.bcastOut.textContent.slice(0,140));
+}
+
+// The signed transaction must actually pay the reviewed destination, decoded from the broadcast bytes.
+// With the test destination set to the card's own address, a build that paid the card back to itself
+// passed everything; the assertion has to name an address unrelated to the card.
+{
+  let posted = null;
+  const net = { utxos:[utxo(200000,true)] };
+  const els = await claimToReview(net);
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => { if(opts && opts.method === 'POST') posted = opts.body; return realFetch(url, opts); };
+  els.destConfirm.checked = true;
+  await els.bcastBtn.onclick(); await tick(200);
+  ok('broadcast happened', posted !== null);
+  if(posted){
+    const tx = btc.Transaction.fromRaw(hex.decode(posted.trim()));
+    ok('the signed transaction has exactly one output', tx.outputsLength === 1, String(tx.outputsLength));
+    ok('the output pays the reviewed destination, not the card',
+       hex.encode(tx.getOutput(0).script) === DEST_SPK, hex.encode(tx.getOutput(0).script));
+    ok('the output does NOT pay back to the card', hex.encode(tx.getOutput(0).script) !== CARD_SPK);
+  }
 }
 
 // ---------------- 1b. A corrupted card code must be unusable, not merely discouraged ----------------
@@ -237,6 +289,37 @@ async function claimToReview(net){
   els.claimP2.value = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
   els.showBtn.onclick(); await tick(150);
   ok('minted serial + wrong key: fails closed when called directly', !/holds/.test(els.showOut.textContent), els.showOut.textContent.slice(0,120));
+}
+
+// ---------------- 4a. The Part 1 pairing gate must not be removable unnoticed ----------------
+// The scratch-panel words must reproduce the P1 committed in the card's QR. Disabling that comparison left
+// every UI test green, because nothing used a VALID Part 1 belonging to a DIFFERENT card. Both phrases here
+// are individually valid BIP39; only their pairing with this card is wrong, which is the real-world case
+// (two cards open on a table, panels scratched, phrases swapped between them).
+{
+  const { els } = boot({ utxos:[utxo(200000,true)] });
+  els.cardUri.value = CARD_VEC; els.cardUri.dispatch('input');
+  els.pathClaim.onclick();
+  els.claimP1.value = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';   // valid words, wrong card
+  els.claimP2.value = CLAIM_P2;
+  els.showBtn.onclick(); await tick(200);
+  const t = els.showOut.textContent;
+  ok('wrong-card Part 1: refuses, no balance shown', !/holds/i.test(t), t.slice(0,120));
+  ok('wrong-card Part 1: names the scratch-panel words', /scratch/i.test(t), t.slice(0,160));
+  ok('wrong-card Part 1: carries the pairing support code', /CARD-02/.test(t), t.slice(0,160));
+  ok('wrong-card Part 1: send section stays hidden', els.sendSection.classList.contains('hide'));
+  ok('wrong-card Part 1: the typed words are still there to correct', els.claimP1.value !== '' && els.claimP2.value !== '');
+}
+// the halves swapped between the two boxes is the commonest version of the same mistake, and gets its own message
+{
+  const { els } = boot({ utxos:[utxo(200000,true)] });
+  els.cardUri.value = CARD_VEC; els.cardUri.dispatch('input');
+  els.pathClaim.onclick();
+  els.claimP1.value = CLAIM_P2; els.claimP2.value = CLAIM_P1;   // swapped
+  els.showBtn.onclick(); await tick(200);
+  const t = els.showOut.textContent;
+  ok('swapped halves: refuses', !/holds/i.test(t), t.slice(0,120));
+  ok('swapped halves: says they are in the wrong boxes', /wrong boxes|swap/i.test(t), t.slice(0,160));
 }
 
 // ---------------- 4b. CLAIM: a deposit arriving between Review and Send must not be left behind ----------

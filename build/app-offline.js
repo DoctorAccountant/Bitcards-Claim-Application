@@ -93,7 +93,7 @@ function init(){
   const requireCard = () => {
     try{
       const c = parseAndVerifyCard(normCardInput($('cardUri').value));
-      if(knownCardStatus(c.P1hex, c.serial) === 'mismatch'){
+      if(knownCardStatus(c.P1hex, c.serial, c.version) === 'mismatch'){
         $('cardStatus').textContent = CARD06;
         try{ $('cardUri').scrollIntoView({behavior:'smooth', block:'center'}); }catch(err){}
         return null;
@@ -117,7 +117,7 @@ function init(){
     if(!val){ $('cardStatus').textContent = ''; return; }
     try{
       const c = parseAndVerifyCard(normCardInput(val));
-      $('cardStatus').textContent = knownCardStatus(c.P1hex, c.serial) === 'mismatch'
+      $('cardStatus').textContent = knownCardStatus(c.P1hex, c.serial, c.version) === 'mismatch'
         ? CARD06
         : '✓ card loaded (No. '+c.serial+')';
     }

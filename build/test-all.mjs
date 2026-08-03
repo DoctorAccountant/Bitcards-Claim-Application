@@ -19,6 +19,7 @@ const SUITES = [
   ['test-known-batch.mjs',    [], 'corrupted card codes are caught before anyone funds them'],
   ['test-record-v2.mjs',      [], 'v2 checksummed records + the v1 permanence pin'],
   ['test-spec-consistency.mjs', [], 'the published spec does not contradict the shipped parser'],
+  ['test-mint-guards.mjs',    [], 'the mint refuses reused serials from any folder'],
 ];
 
 let failed = [];

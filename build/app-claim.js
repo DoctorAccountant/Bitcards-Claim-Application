@@ -72,7 +72,8 @@ let busy = false;      // single in-flight guard: blocks double-clicks and concu
 // number must be unusable no matter which entry point is reached or how.
 function loadCard(){
   const c = parseAndVerifyCard(normCardInput($('cardUri').value));
-  if(knownCardStatus(c.P1hex, c.serial) === 'mismatch') throw new Error('card code does not match card No. '+c.serial+' [CARD-06]');
+  // scoped to the record version: a checksummed record already proved itself in the parser
+  if(knownCardStatus(c.P1hex, c.serial, c.version) === 'mismatch') throw new Error('card code does not match card No. '+c.serial+' [CARD-06]');
   return c;
 }
 function sats(n){ return n.toLocaleString('en-US'); }

@@ -126,8 +126,13 @@ export const parseAndVerifyCard = parseCard; // back-compat alias for existing c
 // We cannot add a checksum to printed cards, but we do know the real public key for every card we made.
 // Returns 'ok' | 'mismatch' | 'unknown'. 'unknown' is NOT a failure: cards outside our range must keep
 // working, or this stops being an open standard and starts being a permission slip from us.
-export function knownCardStatus(P1hex, serial){
+// version matters: the table exists ONLY because a v1 record cannot check itself. A v2 record carries its
+// own checksum, so applying the v1 table to it adds nothing and creates a way to brick a legitimate card:
+// mint v2 cards over a serial range the table already covers and every app would call them counterfeit.
+// Callers pass the record version and must enforce a mismatch only for versions that lack a checksum.
+export function knownCardStatus(P1hex, serial, version){
   const B = KNOWN_BATCH;
+  if(version !== undefined && version !== 1) return 'unknown';   // self-checking formats do not need the table
   if(!B || !Array.isArray(B.segments) || !Number.isInteger(serial)) return 'unknown';
   // serial ranges are allocated per print job and leave gaps, so the table is a list of contiguous
   // segments rather than one run; a serial in none of them is a card we did not make, not an error
