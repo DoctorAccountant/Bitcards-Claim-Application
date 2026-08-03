@@ -84,10 +84,16 @@ for (const f of ['app-claim.js', 'app-offline.js', 'mint-pilot-csv.mjs']) {
 
 // ---------- 5. The 300 cards ALREADY MINTED: public data only, no secrets read ----------
 // If the generator had failed, these keys are already compromised and the cards must not ship.
+// A SKIP here is indistinguishable from a PASS at the suite summary, which would quietly remove the one
+// tripwire aimed at already-printed key material. So absence is a FAILURE unless explicitly waived.
 {
-  const p = 'C:/Users/Cameron/bitcard-mint/bitcard-print-300-QC-manifest.json';
+  const p = process.env.BITCARD_MANIFEST || 'C:/Users/Cameron/bitcard-mint/bitcard-print-300-QC-manifest.json';
+  const waived = process.argv.includes('--no-batch');
   let man = null;
-  try { man = JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { console.log('  (skipped: manifest not present on this machine)'); }
+  try { man = JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) {}
+  ok('minted-batch manifest is present (set BITCARD_MANIFEST, or pass --no-batch to waive)',
+     man !== null || waived, man === null ? 'not found at ' + p : '');
+  if (waived && !man) console.log('  (batch audit explicitly waived with --no-batch)');
   if (man) {
     const keys = man.cards.map(c => c.p1Hex);
     ok('minted batch: 300 cards present', keys.length === 300, keys.length);

@@ -112,8 +112,57 @@ def compress(pt):
     x, y = pt
     return (b"\x03" if (y & 1) else b"\x02") + x.to_bytes(32, "big")
 
+# ---- RIPEMD-160 (pure Python, ISO/IEC 10118-3 reference algorithm) ----
+# This tool exists to work in 20 years with nothing installed. hashlib.new("ripemd160") is NOT part of
+# Python; it is whatever OpenSSL offers, and OpenSSL 3.x moved RIPEMD-160 into the "legacy" provider that
+# most distributions ship disabled. On those builds the line below already raises ValueError. Bitcoin
+# addresses cannot be computed without RIPEMD-160, so the last-resort recovery tool would fail exactly
+# when it is needed and there would be nobody left to patch it. 60 lines of arithmetic removes that
+# dependency permanently. Verified against the RIPEMD-160 published vectors in --selftest.
+_RL = (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15, 7,4,13,1,10,6,15,3,12,0,9,5,2,14,11,8,
+       3,10,14,4,9,15,8,1,2,7,0,6,13,11,5,12, 1,9,11,10,0,8,12,4,13,3,7,15,14,5,6,2,
+       4,0,5,9,7,12,2,10,14,1,3,8,11,6,15,13)
+_RR = (5,14,7,0,9,2,11,4,13,6,15,8,1,10,3,12, 6,11,3,7,0,13,5,10,14,15,8,12,4,9,1,2,
+       15,5,1,3,7,14,6,9,11,8,12,2,10,0,4,13, 8,6,4,1,3,11,15,0,5,12,2,13,9,7,10,14,
+       12,15,10,4,1,5,8,7,6,2,13,14,0,3,9,11)
+_SL = (11,14,15,12,5,8,7,9,11,13,14,15,6,7,9,8, 7,6,8,13,11,9,7,15,7,12,15,9,11,7,13,12,
+       11,13,6,7,14,9,13,15,14,8,13,6,5,12,7,5, 11,12,14,15,14,15,9,8,9,14,5,6,8,6,5,12,
+       9,15,5,11,6,8,13,12,5,12,13,14,11,8,5,6)
+_SR = (8,9,9,11,13,15,15,5,7,7,8,11,14,14,12,6, 9,13,15,7,12,8,9,11,7,7,12,7,6,15,13,11,
+       9,7,15,11,8,6,6,14,12,13,5,14,13,13,7,5, 15,5,8,11,14,14,6,14,6,9,12,9,12,5,15,8,
+       8,5,12,9,12,5,14,6,8,13,6,5,15,13,11,11)
+_KL = (0x00000000, 0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xA953FD4E)
+_KR = (0x50A28BE6, 0x5C4DD124, 0x6D703EF3, 0x7A6D76E9, 0x00000000)
+
+def _rmd_f(j, x, y, z):
+    if j < 16:  return x ^ y ^ z
+    if j < 32:  return (x & y) | (~x & 0xFFFFFFFF & z)
+    if j < 48:  return (x | (~y & 0xFFFFFFFF)) ^ z
+    if j < 64:  return (x & z) | (y & (~z & 0xFFFFFFFF))
+    return x ^ (y | (~z & 0xFFFFFFFF))
+
+def _rol(v, n): return ((v << n) | (v >> (32 - n))) & 0xFFFFFFFF
+
+def ripemd160(msg):
+    h = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0]
+    ml = len(msg) * 8
+    msg = msg + b"\x80" + b"\x00" * ((55 - len(msg)) % 64) + (ml & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "little")
+    for off in range(0, len(msg), 64):
+        X = [int.from_bytes(msg[off + 4 * i: off + 4 * i + 4], "little") for i in range(16)]
+        al, bl, cl, dl, el = h
+        ar, br, cr, dr, er = h
+        for j in range(80):
+            rnd = j >> 4
+            t = (_rol((al + _rmd_f(j, bl, cl, dl) + X[_RL[j]] + _KL[rnd]) & 0xFFFFFFFF, _SL[j]) + el) & 0xFFFFFFFF
+            al, bl, cl, dl, el = el, t, bl, _rol(cl, 10), dl
+            t = (_rol((ar + _rmd_f(79 - j, br, cr, dr) + X[_RR[j]] + _KR[rnd]) & 0xFFFFFFFF, _SR[j]) + er) & 0xFFFFFFFF
+            ar, br, cr, dr, er = er, t, br, _rol(cr, 10), dr
+        h = [(h[1] + cl + dr) & 0xFFFFFFFF, (h[2] + dl + er) & 0xFFFFFFFF, (h[3] + el + ar) & 0xFFFFFFFF,
+             (h[4] + al + br) & 0xFFFFFFFF, (h[0] + bl + cr) & 0xFFFFFFFF]
+    return b"".join(x.to_bytes(4, "little") for x in h)
+
 def hash160(b):
-    return hashlib.new("ripemd160", hashlib.sha256(b).digest()).digest()
+    return ripemd160(hashlib.sha256(b).digest())
 
 # ---- bech32 (BIP173 reference implementation, public domain) ----
 _CH = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
@@ -183,7 +232,18 @@ def selftest():
     rejected = False
     try: recover("abandno abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", _TV["part2"])
     except ValueError: rejected = True
+    # RIPEMD-160 published vectors (ISO/IEC 10118-3). The address depends on this hash, so a wrong
+    # implementation would print a plausible bc1 address that no coins are at. Checked against the
+    # official values, not against OpenSSL, because OpenSSL is the thing being replaced here.
+    rmd_ok = (
+        ripemd160(b"").hex()               == "9c1185a5c5e9fc54612808977ee8f548b2258d31" and
+        ripemd160(b"abc").hex()            == "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc" and
+        ripemd160(b"message digest").hex() == "5d0689ef49d2fae572b881b123a85ffa21595f36" and
+        ripemd160(b"abcdefghijklmnopqrstuvwxyz").hex() == "f71c27109c692c1b56bbdceb5b9d2865b3708dbc" and
+        ripemd160(b"a" * 1000000).hex()    == "52783243c1697bdbe16d37f97f68f08325dc1528"
+    )
     checks = {
+        "RIPEMD-160 matches published vectors": rmd_ok,
         "combined d matches vector":        t["d_hex"] == _TV["d"],
         "public key matches vector":        t["pubkey"] == _TV["pub"],
         "testnet address matches vector":   t["address"] == _TV["addr_testnet"],

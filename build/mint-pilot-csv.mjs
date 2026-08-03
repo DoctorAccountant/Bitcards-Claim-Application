@@ -17,15 +17,13 @@ import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { NET } from './config.js';
+// derivation comes from the ONE audited implementation, never a private copy: a divergence between
+// mint and the claim app would mint cards that fund normally and cannot be opened.
+import { halfScalar, verifyFrozenVector } from './core.js';
 
 const APP_URL = 'https://bitcards.xyz/app.html';   // the live, audited claim app the QR opens
 const n = secp.CURVE.n;
 
-function halfScalar(m){
-  const k = BigInt('0x' + hex.encode(hmac(sha512, utf8ToBytes('Bitcoin seed'), bip39.mnemonicToSeedSync(m, '')).slice(0, 32)));
-  if (k === 0n || k >= n) throw new Error('invalid master scalar (reject per spec 3.4)');
-  return k;
-}
 function mint(serial){
   let m1, d1;
   for(;;){ m1 = bip39.generateMnemonic(wordlist, 128); try{ d1 = halfScalar(m1); break; }catch(e){ /* ~1e-39; regenerate */ } }
@@ -45,6 +43,9 @@ const OUT_DIR = process.argv[4] || path.join(os.homedir(), 'bitcard-mint');
 if (!Number.isSafeInteger(COUNT) || COUNT < 1 || COUNT > 100000) { console.error('REFUSING: count must be a whole number 1..100000, got ' + process.argv[2]); process.exit(1); }
 if (!Number.isSafeInteger(START) || START < 1) { console.error('REFUSING: startSerial must be a whole positive number, got ' + process.argv[3]); process.exit(1); }
 if (START + COUNT - 1 > 0xFFFFFFFF) { console.error('REFUSING: serial range exceeds uint32 (' + (START + COUNT - 1) + ' > 4294967295)'); process.exit(1); }
+
+{ const v = verifyFrozenVector();
+  if(!v.ok){ console.error('REFUSING: this tree cannot reproduce the published frozen vector (expected '+v.expected+', got '+v.got+'). Derivation has drifted; do not mint.'); process.exit(1); } }
 
 // --- guardrail: never write secrets into a cloud-synced / version-tracked location (audit finding #3) ---
 const lower = OUT_DIR.toLowerCase();

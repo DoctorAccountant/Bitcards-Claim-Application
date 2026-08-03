@@ -13,6 +13,7 @@ const SUITES = [
   ['test-setup-parity.mjs', [], 'offline setup derives the same address the claim path opens'],
   ['test-claim-ui.mjs',     ['app-claim.bundle.js'],   'claim app money path and state machine'],
   ['test-offline-ui.mjs',   ['app-offline.bundle.js'], 'offline tool gating, setup safety and state'],
+  ['test-recover.mjs',      [], 'python last-resort recovery agrees with the JS derivation'],
 ];
 
 let failed = [];

@@ -88,8 +88,23 @@ globalThis.fetch = async (url, opts) => {
 globalThis.fetch = async (url) => ({ ok: true, status: 200,
   json: async () => url.includes('blockstream') ? { '2': 80 } : { '2': 3 } });
 ok('feeRate takes the lowest node estimate', (await feeRate()) === 3);
+
+// A guessed fee is a silent failure: 2 sat/vB in a busy mempool can stay unconfirmed for weeks or be
+// evicted, while the app hands over a txid and the customer files the card away. Refusing is safe because
+// the bitcoin never leaves the card. These assert that NO path can invent a rate.
+const refusesFee = async fn => { try { await fn(); return false; } catch (e) { return e.message === 'nofee'; } };
 globalThis.fetch = async () => { throw new Error('down'); };
-ok('feeRate falls back to 2 when all nodes fail', (await feeRate()) === 2);
+ok('feeRate refuses (never guesses 2) when all nodes fail', await refusesFee(feeRate));
+globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({}) });
+ok('feeRate refuses when nodes answer with no usable estimate', await refusesFee(feeRate));
+globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ '2': 0, '3': null, '6': 'soon' }) });
+ok('feeRate refuses on zero/null/non-numeric estimates', await refusesFee(feeRate));
+globalThis.fetch = async (url) => ({ ok: true, status: 200,
+  json: async () => url.includes('blockstream') ? { '2': 0 } : { '2': 45 } });
+ok('a node answering 0 is excluded, not treated as the cheapest', (await feeRate()) === 45);
+globalThis.fetch = async (url) => ({ ok: true, status: 200,
+  json: async () => url.includes('blockstream') ? {} : { '3': 12.4 } });
+ok('falls through 2 to 3 and rounds up (12.4 -> 13)', (await feeRate()) === 13);
 
 // ---- audit round 2 "lying broadcaster": one returns garbage 200, the other rejects -> MUST NOT report success ----
 globalThis.fetch = async (url, opts) => {

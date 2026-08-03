@@ -6,7 +6,7 @@
 // It NEVER touches the network: imports only pure crypto + DOM helpers from core.js (no getUtxos / broadcastTx / fetch),
 // page CSP is connect-src 'none'. Works with EXISTING v0.4 cards unchanged (public record in, no card change needed).
 // Copy rules: no em dashes; JS single-quoted strings avoid apostrophes.
-import { $, log, NET, bip39, wordlist, halfScalar, pubOfScalar, setupAddress, combine, parseAndVerifyCard, normCardInput, normWords, toWIF, hexlib, showBuildHash } from './core.js';
+import { $, log, NET, bip39, wordlist, halfScalar, pubOfScalar, setupAddress, combine, parseAndVerifyCard, normCardInput, normWords, toWIF, hexlib, showBuildHash, verifyFrozenVector } from './core.js';
 
 window.addEventListener('error', e => { const s=document.getElementById('status'); if(s) s.textContent='BUNDLE ERROR: '+(e.message||(e.error&&e.error.message)||e); });
 
@@ -38,7 +38,26 @@ function wordGrid(m){
 }
 
 
+// This tool is the last-resort path, often used years later from a saved copy, so it must prove itself
+// against the published reference card before it will produce a key. It previously had no self-test at all.
+function frozenVectorGate(){
+  const v = verifyFrozenVector();
+  if(v.ok) return true;
+  try{
+    ['p1','p2','revealBtn','genBtn','verifyWords','verifyBtn','haveWords','haveCheckBtn','haveWordsBtn','modeSetup','modeOpen']
+      .forEach(id => { const e = $(id); if(e) e.disabled = true; });
+    const box = document.createElement('div');
+    box.className = 'warn';
+    box.textContent = 'This copy of the tool is not safe to use. It failed its built-in check against the published '
+      + 'reference card, so it would work out the wrong key. Do not enter any words. Get a fresh copy, check its '
+      + 'SHA-256 against the published value, and try again. Your card and your bitcoin are unaffected. [CORE-01]';
+    const wrap = document.querySelector('.wrap'); if(wrap) wrap.insertBefore(box, wrap.firstChild);
+  }catch(e){}
+  return false;
+}
+
 function init(){
+  if(!frozenVectorGate()) return;
   const isMain = NET.hrp === 'bc';
   document.title = 'Bitcard offline key tool (' + NET.label + ')';
   const nb = $('netbadge');
@@ -123,8 +142,17 @@ function init(){
       return;
     }
     // physical-state gate: asked on the first generation of EVERY session, because a reload forgets everything
-    if(!setupState && !confirm('Quick check: are the numbered word lines on this card completely BLANK?\n\nIf words are already written there, press Cancel. That card was set up before, and making new words for it can lose bitcoin. Use "I already wrote words on this card" instead.')) return;
-    if(setupState && !confirm('Make a NEW set of 12 words?\n\nOnly do this if you have NOT written the current words on the card and have NOT sent any bitcoin. The old words and their deposit address cannot be recovered.')) return;
+    // A cancelled dialog used to return in silence. Some in-app browsers suppress confirm() entirely and it
+    // then reports Cancel without ever showing anything, so the button looked broken with no way to tell why.
+    // Refusing is the safe answer either way, so keep refusing, but always say so.
+    if(!setupState && !confirm('Quick check: are the numbered word lines on this card completely BLANK?\n\nIf words are already written there, press Cancel. That card was set up before, and making new words for it can lose bitcoin. Use "I already wrote words on this card" instead.')){
+      log('genOut','No new words were made. If this card already has words written on it, keep them and choose "I already wrote words on this card". If the lines really are blank and you did not see a question just now, your browser is blocking pop-up questions: open this file in Safari or Chrome directly.','bad');
+      return;
+    }
+    if(setupState && !confirm('Make a NEW set of 12 words?\n\nOnly do this if you have NOT written the current words on the card and have NOT sent any bitcoin. The old words and their deposit address cannot be recovered.')){
+      log('genOut','Kept the words already shown. Nothing changed.','');
+      return;
+    }
     clearSetup();
     try{
       const m = bip39.generateMnemonic(wordlist, 128);

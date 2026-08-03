@@ -4,7 +4,7 @@
 // Copy rules: no em dashes anywhere; JS strings avoid apostrophes (use full words); HTML may use contractions.
 import { $, log, bip39, wordlist, btc, BTCNET, NET, hexlib, b64u,
   parseAndVerifyCard, normCardInput, normWords, buildRecord, halfScalar, pubOfScalar, setupAddress, combine, bigToBytes32, showBuildHash,
-  estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed } from './core.js';
+  estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed, verifyFrozenVector } from './core.js';
 import { getUtxos, feeRate, broadcastTx } from './net.js';   // network layer (online app only)
 import { ENDPOINTS } from './endpoints.js';                  // node URLs (online app only); the offline tool never imports this
 
@@ -22,16 +22,37 @@ function checkWords(raw, boxName){
   return { m };
 }
 
-// hidden self-check (inside "Verify this app"): aggregation + record round-trip + malformed rejection
+// Refuse to run at all if this build cannot reproduce the published frozen vector. A drifted derivation
+// is silent and self-consistent: it would pass verification, pass the random self-check, and send buyers
+// to addresses no conformant tool can reproduce. Better a dead app than one that strands money.
+function frozenVectorGate(){
+  const v = verifyFrozenVector();
+  if(v.ok) return true;
+  try{
+    ['pathGive','pathClaim','pathBal'].forEach(id => { const e = $(id); if(e){ e.disabled = true; e.classList.add('hide'); } });
+    ['chooser','giveFlow','claimFlow','balFlow'].forEach(id => { const e = $(id); if(e) e.classList.add('hide'); });
+    const box = document.createElement('div');
+    box.className = 'warn';
+    box.textContent = 'This copy of the app is not safe to use. It failed its built-in check against the published '
+      + 'reference card, which means it would work out the wrong bitcoin address. Nothing has been lost and your card is fine. '
+      + 'Do not enter any words here. Open the app again from the official address bitcards.xyz, and if this message appears '
+      + 'again, use the offline tool or the published recovery method instead. [CORE-01]';
+    const wrap = document.querySelector('.wrap'); if(wrap) wrap.insertBefore(box, wrap.firstChild);
+  }catch(e){}
+  return false;
+}
+
+// hidden self-check (inside "Verify this app"): frozen vector + aggregation + record round-trip + malformed rejection
 function runSelfTest(){
   try{
+    const fv = verifyFrozenVector();
     const d1 = halfScalar(bip39.generateMnemonic(wordlist,128)), d2 = halfScalar(bip39.generateMnemonic(wordlist,128));
     const aggOK = setupAddress(hexlib.encode(pubOfScalar(d1)), d2) === combine(d1, d2).address;
     const P1 = pubOfScalar(d1);
     const uri = 'bitcard:' + b64u.encode(buildRecord(P1, 42));
     let posOK = false; try{ const v = parseAndVerifyCard(uri); posOK = v.P1hex === hexlib.encode(P1) && v.serial === 42; }catch(e){}
     let negOK = false; try{ parseAndVerifyCard(uri.slice(0, uri.length-4)); }catch(e){ negOK = /length|bitcard|version|curve|point|record/i.test(e.message); }
-    $('selftest').textContent = 'self-check: aggregation '+aggOK+' · record round-trip '+posOK+' · malformed rejected '+negOK+' → '+((aggOK&&posOK&&negOK)?'PASS':'FAIL');
+    $('selftest').textContent = 'self-check: published reference card '+fv.ok+' · aggregation '+aggOK+' · record round-trip '+posOK+' · malformed rejected '+negOK+' → '+((fv.ok&&aggOK&&posOK&&negOK)?'PASS':'FAIL');
   }catch(e){ $('selftest').textContent = 'self-check error: '+e.message; }
 }
 
@@ -144,10 +165,13 @@ const SWEEP_ERR = {
   dust:        'After the network fee, what would be left is below the tiny minimum the bitcoin network accepts. Nothing was sent, the bitcoin is still on the card. Try again when fees are lower.',
   feecap:      'The fee for this payment is above our safety limit right now. Nothing was sent, the bitcoin is still on the card. Try again in a few hours [FEE-01], or use the offline tool at bitcards.xyz/offline.html and sweep with your own wallet, where you choose the fee yourself.',
   feehalf:     'Right now the network fee would eat more than half of what is on this card, so we stopped. Nothing was sent, the bitcoin is still on the card. Fees change hour to hour [FEE-02]: try again later, or use the offline tool at bitcards.xyz/offline.html and sweep with your own wallet, where you choose the fee yourself.',
-  destmismatch:'Safety check failed, the address did not match. Nothing was sent. Re-check your wallet address.'
+  destmismatch:'Safety check failed, the address did not match. Nothing was sent. Re-check your wallet address.',
+  nofee:       'We could not check the current bitcoin network fee, so we stopped rather than guess. Nothing was sent, the bitcoin is still on the card. Try again in a few minutes [FEE-03].'
 };
 
 function init(){
+  // must be first: a build that cannot reproduce the published reference card never gets to touch words
+  if(!frozenVectorGate()) return;
   // network banner from config; brand orange for real money, red stays reserved for errors
   const isMain = NET.hrp === 'bc';
   document.title = 'Bitcard ' + NET.label;
@@ -278,8 +302,11 @@ function init(){
       }
       // a reload wipes the in-memory lock above, so the FIRST generation of a session gates on the card's physical
       // state instead: if words are already handwritten, this card was set up before and must not get a new set.
+      // A cancelled dialog used to clear the output and return in silence. Some in-app browsers suppress
+      // confirm() outright and it reports Cancel without showing anything, so the button looked broken.
+      // Refusing is the safe answer either way, so keep refusing, but always explain.
       if(!setup.addr && !confirm('Quick check: are the numbered word lines on the card still BLANK?\n\nIf words are already handwritten there, press Cancel. This card was set up before, making new words for it can lose bitcoin. Use "This card was given to me" instead.')){
-        $('setupOut').textContent = '';
+        log('setupOut','No new words were made. If this card already has words written on it, keep them and choose "This card was given to me". If the lines really are blank and you did not see a question just now, your browser is blocking pop-up questions: open this page in Safari or Chrome directly.','bad');
         return;
       }
       if(setup.addr){
@@ -299,7 +326,7 @@ function init(){
           return;
         }
         if(!confirm('Replace the 12 words with a brand new set?\n\nOnly do this if you have NOT written the current words on a card and have NOT sent any bitcoin yet. This cannot be undone.')){
-          $('setupOut').textContent = '';
+          log('setupOut','Kept the words already shown. Nothing changed.','');
           return;
         }
         // close the check-then-replace race: funds may have arrived while the dialog sat open; fail closed on any doubt

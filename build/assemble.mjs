@@ -5,6 +5,21 @@ const tpl = process.argv[2] || 'build/template-claim.html';
 const bnd = process.argv[3] || 'build/app-claim.bundle.js';
 const out = process.argv[4] || 'print/claim-app.html';
 
+// The build must not be able to emit an artifact whose derivation is wrong. Running the frozen vector
+// here means a drifted dependency fails at BUILD time rather than silently shipping a self-consistent
+// build that sends buyers to addresses no conformant tool can reproduce.
+{
+  const { verifyFrozenVector } = await import('./core.js');
+  const v = verifyFrozenVector();
+  if (!v.ok) {
+    console.error('REFUSING TO BUILD: this tree cannot reproduce the published frozen vector.');
+    console.error('  expected ' + v.expected + '\n  got      ' + v.got);
+    console.error('  Derivation has drifted. Do not ship. Check dependency versions against package-lock.json.');
+    process.exit(1);
+  }
+  console.log('frozen vector: reproduces ' + v.got + ' (build anchored to the published standard)');
+}
+
 let template = fs.readFileSync(tpl, 'utf8');
 let bundle = fs.readFileSync(bnd, 'utf8');
 

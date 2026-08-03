@@ -25,13 +25,26 @@ export async function getUtxos(addr){ // §7: require ALL nodes to respond, pass
 
 // Fee estimate from ALL nodes; use the LOWEST sane answer. A lying node can then only slow the payment (the RBF
 // speed-up recovers that), never inflate the fee toward the 50% cap. Bounded by MAX_FEERATE + 50% cap + dust refusal.
+// It used to fall back to 2 sat/vB in two places: when a node's JSON lacked the expected keys, and when
+// every node failed. Both were silent. In a busy mempool a 2 sat/vB sweep can sit unconfirmed for weeks or
+// be evicted entirely, while the app reports a txid and the customer files the card away believing it is
+// done. Guessing a fee is never better than saying we do not know: the bitcoin is safe on the card either
+// way, so we refuse and let them retry. A node that answers with nothing usable is now simply not counted.
 export async function feeRate(){
   const NODES = ENDPOINTS.nodes;
   const res = await Promise.allSettled(NODES.map(b=>fetchJSON(b,'/fee-estimates')));
   const rates = res.filter(r=>r.status==='fulfilled')
-    .map(r=>{ const f=r.value||{}; return Math.ceil(f['2']||f['3']||f['6']||2); })
-    .filter(x=>Number.isFinite(x) && x>=1);
-  return rates.length ? Math.max(1, Math.min(...rates)) : 2;
+    .map(r=>{
+      const f = r.value || {};
+      for(const k of ['2','3','6']){
+        const v = Number(f[k]);
+        if(Number.isFinite(v) && v > 0) return Math.ceil(v);
+      }
+      return null;                       // this node said nothing usable; excluded, never treated as cheap
+    })
+    .filter(x => x !== null && Number.isFinite(x) && x >= 1);
+  if(!rates.length) throw new Error('nofee');
+  return Math.max(1, Math.min(...rates));
 }
 
 export async function broadcastTx(raw, expectedTxid){ // §7: post to ALL nodes; a node "accepts" only if it echoes the txid WE computed (a lying node cannot fake success)

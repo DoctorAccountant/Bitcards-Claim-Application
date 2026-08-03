@@ -94,6 +94,49 @@ export function parseCard(uri){
 }
 export const parseAndVerifyCard = parseCard; // back-compat alias for existing callers
 
+// ---- FROZEN VECTOR: the shipped build's anchor to the PUBLISHED standard ----
+// A self-test built from random input only proves the build agrees with itself. If any step of
+// mnemonic -> seed -> scalar -> address ever drifted (a dependency bump, a tampered transitive package,
+// a bundler transform), setup would derive a wrong address, the mandatory re-type check would re-derive
+// the SAME wrong address and pass, and a random self-test would print PASS. Every gate in the product
+// would confirm the broken build, and the words plus the open standard would not find the money.
+// That is the Coldcard shape, so the shipped apps must verify against fixed, published values.
+export const FROZEN_VECTOR = {
+  part1: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+  part2: 'legal winner thank year wave sausage worth useful legal winner thank yellow',
+  addressMainnet: 'bc1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrvtkvyg',
+  addressTestnet: 'tb1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrxddllm',
+  wifMainnet: 'L2GNgkXGSNjb1fTyt9WSbwHX8s3LwRRYNExo8AoBAg2yTDJMnXBF'
+};
+// SECOND anchor, and the reason there are two: in the vector above d1+d2 is LESS than the curve order, so
+// it never exercises the "mod n" reduction. Both halves are near-uniform in [0,n), so d1+d2 >= n for close
+// to HALF of all real cards. A reduction that drifted (a wrong constant, an implementation that forgot to
+// reduce, a library changing how it accepts an out-of-range scalar) would break about half of a batch while
+// the first vector stayed green. This pair wraps, so the reduction is pinned too.
+// Both use published BIP39 test mnemonics, so an outside reviewer can reproduce them without trusting us.
+export const FROZEN_VECTOR_WRAP = {
+  part1: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+  part2: 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong',
+  addressMainnet: 'bc1qlpcjezx3dlyyywdq0g6qp6r0gjkk4rcekk0z25',
+  addressTestnet: 'tb1qlpcjezx3dlyyywdq0g6qp6r0gjkk4rceus5338',
+  wifMainnet: 'KwYfzgnFwKzL4eJAzhnph2BwkCNHNDmvznGLpBiKQqyqDhChtoQa'
+};
+// Costs four PBKDF2 runs, which the old random self-test already partly paid for. Returns the detail so
+// the caller can refuse to operate rather than merely reporting a failure.
+export function verifyFrozenVector(){
+  const main = NET.hrp === 'bc';
+  const expected = main ? FROZEN_VECTOR.addressMainnet : FROZEN_VECTOR.addressTestnet;
+  try{
+    const out = combine(halfScalar(FROZEN_VECTOR.part1), halfScalar(FROZEN_VECTOR.part2));
+    const wifOK = !main || toWIF(out.d) === FROZEN_VECTOR.wifMainnet;
+    const wExp = main ? FROZEN_VECTOR_WRAP.addressMainnet : FROZEN_VECTOR_WRAP.addressTestnet;
+    const wOut = combine(halfScalar(FROZEN_VECTOR_WRAP.part1), halfScalar(FROZEN_VECTOR_WRAP.part2));
+    const wrapOK = wOut.address === wExp && (!main || toWIF(wOut.d) === FROZEN_VECTOR_WRAP.wifMainnet);
+    return { ok: out.address === expected && wifOK && wrapOK, expected, got: out.address, wifOK,
+             wrapOK, wrapExpected: wExp, wrapGot: wOut.address };
+  }catch(e){ return { ok:false, expected, got:'error: '+e.message, wifOK:false, wrapOK:false }; }
+}
+
 // Normalize a typed or pasted word list. The invisible characters below are inserted routinely by chat
 // apps, PDFs and web pages, and they are the worst possible failure: the rejected word LOOKS correct on
 // screen, so the customer retypes it identically forever. Stripping them changes no security property,
