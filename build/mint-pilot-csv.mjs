@@ -48,6 +48,9 @@ const OUT_DIR = process.argv[4] || path.join(os.homedir(), 'bitcard-mint');
 if (!Number.isSafeInteger(COUNT) || COUNT < 1 || COUNT > 100000) { console.error('REFUSING: count must be a whole number 1..100000, got ' + process.argv[2]); process.exit(1); }
 if (!Number.isSafeInteger(START) || START < 1) { console.error('REFUSING: startSerial must be a whole positive number, got ' + process.argv[3]); process.exit(1); }
 if (START + COUNT - 1 > 0xFFFFFFFF) { console.error('REFUSING: serial range exceeds uint32 (' + (START + COUNT - 1) + ' > 4294967295)'); process.exit(1); }
+// serials >= 4294000000 are RESERVED for published spec/test vectors and must never appear on a real card:
+// a spec example colliding with a sold card would make the example read as a forgery of it (and vice versa)
+if (START + COUNT - 1 >= 4294000000) { console.error('REFUSING: serials >= 4294000000 are reserved for published test vectors'); process.exit(1); }
 
 { const v = verifyFrozenVector();
   if(!v.ok){ console.error('REFUSING: this tree cannot reproduce the published frozen vector (expected '+v.expected+', got '+v.got+'). Derivation has drifted; do not mint.'); process.exit(1); } }

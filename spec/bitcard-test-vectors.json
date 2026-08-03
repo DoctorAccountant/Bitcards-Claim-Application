@@ -11,24 +11,24 @@
     "note": "Cards carry NO issuer signature (open, permissionless standard). The QR payload is base64url(record) with nothing appended. Two record versions exist. v1(41) = version=1(1) | network(1) | scripttype(1) | kdf(1) | P1(33, compressed) | serial(4, uint32 BE). v2(46) = the same 41 bytes with version=2, followed by checksum(5) = the first 5 bytes of SHA-256 over those 41 bytes. v1 has NO integrity check: roughly 47% of single-character substitutions in a v1 card code still decode to a structurally valid record carrying a different valid key, so a hand-typed code can silently address funds to a key nobody holds. v2 closes that: a conformant parser MUST verify the checksum and reject on mismatch. v1 MUST remain accepted forever; v1 cards printed in 2026 are bearer instruments.",
     "recordHexExample": "0101010103d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee049400000001",
     "recordV2": {
-      "note": "Same P1 as vector 1 part1 (a published BIP39 test mnemonic), serial 123, so every byte is reproducible.",
-      "recordHex": "0200010103d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee04940000007b33e3641437",
-      "cardURI": "bitcard:AgABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHsz42QUNw",
-      "checksumHex": "33e3641437",
+      "note": "Same P1 as vector 1 part1 (a published BIP39 test mnemonic), serial 4294967123 (from the reserved never-minted range), so every byte is reproducible.",
+      "recordHex": "0200010103d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee0494ffffff5335fccd3f8c",
+      "cardURI": "bitcard:AgABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElP___1M1_M0_jA",
+      "checksumHex": "35fccd3f8c",
       "corruptionVectors": [
         {
           "note": "serial byte flipped: checksum MUST reject (the checksum covers the serial)",
-          "cardURI": "bitcard:AgABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHoz42QUNw",
+          "cardURI": "bitcard:AgABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElP___1I1_M0_jA",
           "expect": "reject"
         },
         {
           "note": "one P1 byte flipped: checksum MUST reject",
-          "cardURI": "bitcard:AgABAQPZAvNfVg8EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHsz42QUNw",
+          "cardURI": "bitcard:AgABAQPZAvNfVg8EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElP___1M1_M0_jA",
           "expect": "reject"
         },
         {
           "note": "compressed-point prefix flipped 03 to 02 (a valid curve point, the dangerous v1 case): checksum MUST reject",
-          "cardURI": "bitcard:AgABAQLZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHsz42QUNw",
+          "cardURI": "bitcard:AgABAQLZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElP___1M1_M0_jA",
           "expect": "reject"
         }
       ]

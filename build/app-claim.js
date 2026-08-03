@@ -225,6 +225,8 @@ function init(){
       $('cardStatus').textContent =
         /CARD-06/.test(e.message)
           ? 'This code is not quite right. It looks like a card code, but it does not match the card we made with that number, so one character is probably wrong. Do not send any bitcoin using it. Scan the QR on the back of the card with your phone camera instead of typing the code. [CARD-06]'
+        : /checksum/.test(e.message)
+          ? 'One character of this code is mistyped: the code carries its own check digits and they do not add up. Do not send any bitcoin using it. Compare it with the card character by character, or scan the QR on the back with your phone camera instead. [CARD-07]'
         : /multiple cards/.test(e.message)
           ? 'More than one card link was pasted, so we cannot tell which card you are holding. Clear the box and paste only the link for the card in your hand, or scan its QR. [CARD-05]'
         : partial
@@ -409,6 +411,8 @@ function init(){
     try{ card = loadCard(); }
     catch(e){ log('showOut', /CARD-06/.test(e.message)
         ? 'This card code does not match the card we made with that number, so one character is probably wrong. Nothing was sent. Scan the QR on the back of the card instead of typing the code. [CARD-06]'
+        : /checksum/.test(e.message)
+        ? 'One character of this card code is mistyped: the code carries its own check digits and they do not add up. Nothing was sent. Scan the QR on the back of the card instead of typing the code. [CARD-07]'
         : 'This card code is not valid. Re-scan the QR on the back of the card, then try again. [CARD-01]','bad'); return; }   // audit: fail closed, never skip the pairing check
     // the QR commits the hidden half: catch a mispaired or misread panel deterministically
     if(hexlib.encode(pubOfScalar(halfScalar(r1.m))) !== card.P1hex){

@@ -55,13 +55,16 @@ const out = {
     note: 'Cards carry NO issuer signature (open, permissionless standard). The QR payload is base64url(record) with nothing appended. Two record versions exist. v1(41) = version=1(1) | network(1) | scripttype(1) | kdf(1) | P1(33, compressed) | serial(4, uint32 BE). v2(46) = the same 41 bytes with version=2, followed by checksum(5) = the first 5 bytes of SHA-256 over those 41 bytes. v1 has NO integrity check: roughly 47% of single-character substitutions in a v1 card code still decode to a structurally valid record carrying a different valid key, so a hand-typed code can silently address funds to a key nobody holds. v2 closes that: a conformant parser MUST verify the checksum and reject on mismatch. v1 MUST remain accepted forever; v1 cards printed in 2026 are bearer instruments.',
     recordHexExample: '0101010103d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee049400000001',
     recordV2: (() => {
+      // serial from the RESERVED range (>= 4294000000, never minted): a published example must not
+      // collide with a real card, or pasting it into the live app trips the known-batch check
+      const SERIAL = 4294967123;
       const P1 = pubOfScalar(halfScalar(M.abandon));
-      const rec = buildRecord(P1, 123);
+      const rec = buildRecord(P1, SERIAL);
       const b = b64u.encode(rec);
       const chk = parseAndVerifyCard('bitcard:' + b);   // generator refuses to publish a vector its own parser rejects
-      if (chk.serial !== 123 || chk.version !== 2) throw new Error('v2 vector does not round-trip');
+      if (chk.serial !== SERIAL || chk.version !== 2) throw new Error('v2 vector does not round-trip');
       return {
-        note: 'Same P1 as vector 1 part1 (a published BIP39 test mnemonic), serial 123, so every byte is reproducible.',
+        note: 'Same P1 as vector 1 part1 (a published BIP39 test mnemonic), serial 4294967123 (from the reserved never-minted range), so every byte is reproducible.',
         recordHex: hex.encode(rec),
         cardURI: 'bitcard:' + b,
         checksumHex: hex.encode(rec.slice(41)),

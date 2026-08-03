@@ -30,12 +30,16 @@ const FROZEN_V1 = 'AQABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHs';
 }
 
 // ---- frozen v2 vector (also published in bitcard-test-vectors.json) ----
-const FROZEN_V2 = 'AgABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHsz42QUNw';
+// Serial 4294967123 sits in the RESERVED range (>= 4294000000, never minted, enforced by mint-pilot-csv):
+// a spec vector must not collide with a real card, or pasting the published example into the live app
+// trips the known-batch check and looks like a defect.
+const V2_SERIAL = 4294967123;
+const FROZEN_V2 = 'AgABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElP___1M1_M0_jA';
 {
-  const built = b64u.encode(buildRecord(P1, 123));
+  const built = b64u.encode(buildRecord(P1, V2_SERIAL));
   ok('buildRecord reproduces the frozen v2 vector byte for byte', built === FROZEN_V2, built);
   const p = parseAndVerifyCard('bitcard:' + FROZEN_V2);
-  ok('frozen v2 record parses with the right identity', p.P1hex === P1hex && p.serial === 123 && p.version === 2);
+  ok('frozen v2 record parses with the right identity', p.P1hex === P1hex && p.serial === V2_SERIAL && p.version === 2);
   ok('v2 record is 46 bytes / 62 chars (QR stays version 5)', b64u.decode(FROZEN_V2).length === RECORD_V2_LEN && FROZEN_V2.length === 62);
 }
 
@@ -54,7 +58,7 @@ const FROZEN_V2 = 'AgABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHsz42QUN
       let p;
       try { p = parseAndVerifyCard('bitcard:' + FROZEN_V2.slice(0, i) + ch + FROZEN_V2.slice(i + 1)); }
       catch (e) { rejected++; continue; }
-      if (p.P1hex === P1hex && p.serial === 123) sameCard++; else differentCard++;
+      if (p.P1hex === P1hex && p.serial === V2_SERIAL) sameCard++; else differentCard++;
     }
   }
   ok('all ' + tested + ' single-char corruptions: none yields a different card ' +
@@ -81,6 +85,22 @@ const FROZEN_V2 = 'AgABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHsz42QUN
   // and the checksum function itself is pinned: first 5 bytes of a single SHA-256
   ok('checksum = SHA-256 truncated to 5 bytes (spec pin)',
      hexlib.encode(recordChecksum(rec.slice(0, RECORD_V1_LEN))) === hexlib.encode(rec.slice(41, 46)));
+  // a checksum failure must be DISTINGUISHABLE from other rejections: the apps show CARD-07 ("one
+  // character is mistyped, compare it with the card") rather than the generic "not a Bitcard code",
+  // which is the difference between a customer fixing a typo and a customer thinking the card is broken.
+  let msg = '';
+  try { parseAndVerifyCard(reenc(c)); } catch (e) { msg = e.message; }
+  ok('a checksum failure says so in its message (drives CARD-07)', /checksum/i.test(msg), msg);
+}
+
+// ---- the published vector must not collide with a real card ----
+// Serials >= 4294000000 are reserved and mint-pilot-csv.mjs refuses them. Without that, the spec example
+// would land inside a minted range and the known-batch check would flag the published vector as a forgery.
+{
+  const { knownCardStatus } = await import('./core.js');
+  const p = parseAndVerifyCard('bitcard:' + FROZEN_V2);
+  ok('the published v2 vector uses a reserved serial', p.serial >= 4294000000);
+  ok('the published v2 vector is not mistaken for a minted card', knownCardStatus(p.P1hex, p.serial) === 'unknown');
 }
 
 console.log('\n' + (fail === 0 ? 'RECORD V2 OK (' + pass + ' passed)' : 'RECORD V2 FAILED (' + fail + ' failures)'));

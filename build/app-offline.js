@@ -121,7 +121,9 @@ function init(){
         ? CARD06
         : '✓ card loaded (No. '+c.serial+')';
     }
-    catch(e){ $('cardStatus').textContent = /multiple cards/.test(e.message)
+    catch(e){ $('cardStatus').textContent = /checksum/.test(e.message)
+      ? 'One character of this code is mistyped: the code carries its own check digits and they do not add up. Compare it with the card character by character. [CARD-07]'
+      : /multiple cards/.test(e.message)
       ? 'More than one card link was pasted, so we cannot tell which card you are holding. Clear the box and paste only the link for the card in your hand.'
       : 'That code is not complete yet. Paste the whole card code, or the whole link from scanning the QR.'; }
   }
