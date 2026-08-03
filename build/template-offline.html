@@ -3,32 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#F4F1E9">
 <title>Bitcard offline key tool</title>
 <style>
-  :root{ --bg:#fbfaf6; --card:#fff; --ink:#1a1a1a; --muted:#6b6b6b; --line:#e6e2d8; --brand:#E07B12; --brandd:#c26a08; --ok:#1d7a4d; --bad:#c0392b; --soft:#f3f1ea; }
+<!--FONTS-->
+  /* Brand tokens, matched to bitcards.xyz and the claim app */
+  :root{ --bg:#F4F1E9; --card:#FFFFFF; --ink:#23211C; --muted:#6E6A5F; --line:#E4DECF; --brand:#D97910; --brandd:#B86A12; --ok:#2E8B57; --bad:#B3341F; --soft:#FBF9F3;
+    --disp:"Archivo",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --body:"Inter Tight",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace; }
   *{box-sizing:border-box}
-  body{ margin:0; background:var(--bg); color:var(--ink); line-height:1.55; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  html{-webkit-text-size-adjust:100%}
+  body{ margin:0; background:var(--bg); color:var(--ink); line-height:1.55; font-size:16px; font-family:var(--body); -webkit-font-smoothing:antialiased; }
   .wrap{ max-width:600px; margin:0 auto; padding:22px 18px 60px; }
   header{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
-  h1{ font-size:23px; margin:0; letter-spacing:-.3px; }
+  h1{ font-family:var(--disp); font-size:23px; font-weight:700; margin:0; letter-spacing:-.02em; }
+  h2{ font-family:var(--disp); font-weight:600; letter-spacing:-.01em; }
   #netbadge{ font-size:11px; font-weight:800; border-radius:999px; padding:3px 10px; white-space:nowrap; }
   .tag{ color:var(--muted); font-size:15px; margin:0 0 16px; }
   .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin:14px 0; box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.04); }
   label{ display:block; font-size:14px; font-weight:600; margin:14px 0 6px; }
   label:first-child{ margin-top:0; }
-  input{ width:100%; font:inherit; font-size:15px; border:1.5px solid #dcd8cc; border-radius:10px; padding:12px; background:#fff; }
+  input{ width:100%; font:inherit; font-size:16px; font-family:var(--mono); border:1.5px solid #dcd8cc; border-radius:10px; padding:12px; background:#fff; }
   input:focus{ outline:none; border-color:var(--brand); }
-  button{ font:inherit; font-size:15px; font-weight:700; background:var(--brand); color:#fff; border:none; border-radius:11px; padding:13px 18px; cursor:pointer; margin-top:12px; width:100%; }
+  button{ font:inherit; font-size:16px; font-weight:600; font-family:var(--body); min-height:52px; background:var(--brand); color:#fff; border:none; border-radius:11px; padding:13px 18px; cursor:pointer; margin-top:12px; width:100%; }
   button:hover{ background:var(--brandd); }
   button.mini{ width:auto; padding:5px 12px; font-size:13px; margin:0; background:#fff; color:var(--ink); border:1.5px solid #dcd8cc; }
   .lead{ color:var(--muted); font-size:14.5px; margin:0 0 6px; }
   .note{ font-size:13.5px; color:var(--muted); background:var(--soft); border-radius:10px; padding:10px 12px; margin:10px 0; }
   .warn{ font-size:14px; color:#7a3b12; background:#fbeee2; border:1px solid #eeccb0; border-radius:10px; padding:12px 14px; margin:10px 0; }
-  .out{ font-family:ui-monospace,Consolas,monospace; font-size:13px; overflow-wrap:anywhere; white-space:pre-wrap; background:var(--soft); border-radius:10px; padding:11px; margin:8px 0; }
+  .out{ font-family:var(--mono); font-size:13px; overflow-wrap:anywhere; white-space:pre-wrap; background:var(--soft); border-radius:10px; padding:11px; margin:8px 0; }
   .out:empty{ display:none; }
-  .keyrow{ font-family:ui-monospace,Consolas,monospace; font-size:15px; overflow-wrap:anywhere; background:#fff; border:1.5px solid var(--brand); border-radius:10px; padding:12px; margin:6px 0; user-select:all; }
-  .addr{ font-family:ui-monospace,Consolas,monospace; font-size:13px; overflow-wrap:anywhere; background:var(--soft); border-radius:10px; padding:10px; margin:6px 0; user-select:all; }
+  .keyrow{ font-family:var(--mono); font-size:15px; overflow-wrap:anywhere; background:#fff; border:1.5px solid var(--brand); border-radius:10px; padding:12px; margin:6px 0; user-select:all; }
+  .addr{ font-family:var(--mono); font-size:13px; overflow-wrap:anywhere; background:var(--soft); border-radius:10px; padding:10px; margin:6px 0; user-select:all; }
   .wc{ font-size:12px; color:var(--muted); margin:3px 2px 0; min-height:14px; }
   .ok{ color:var(--ok); font-weight:700; } .bad{ color:var(--bad); font-weight:700; }
   .hide{ display:none!important; }

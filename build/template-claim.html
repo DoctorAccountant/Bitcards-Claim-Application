@@ -2,58 +2,123 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://blockstream.info https://mempool.space; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; connect-src https://blockstream.info https://mempool.space; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#F4F1E9">
 <title>Bitcard (v0.4)</title>
 <style>
-  :root{ --bg:#fbfaf6; --card:#fff; --ink:#1a1a1a; --muted:#6b6b6b; --line:#e6e2d8; --brand:#E07B12; --brandd:#c26a08; --ok:#1d7a4d; --bad:#c0392b; --soft:#f3f1ea; }
+<!--FONTS-->
+  /* Brand tokens, matched to bitcards.xyz */
+  :root{
+    --ground:#F4F1E9; --surface:#FBF9F3; --surface-2:#FFFFFF; --hairline:#E4DECF;
+    --text:#23211C; --muted:#6E6A5F; --muted-2:#7C7768;
+    --orange:#D97910; --orange-dim:#B86A12; --verify:#2E8B57; --bad:#B3341F;
+    --steel-a:#3A3D44; --steel-b:#6B7079;
+    --disp:"Archivo",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --body:"Inter Tight",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --r:14px; --r-lg:20px;
+  }
   *{box-sizing:border-box}
-  body{ margin:0; background:var(--bg); color:var(--ink); line-height:1.55;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-  .wrap{ max-width:600px; margin:0 auto; padding:22px 18px 60px; }
-  header{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
-  h1{ font-size:24px; margin:0; letter-spacing:-.3px; }
-  #netbadge{ font-size:11px; font-weight:800; letter-spacing:.03em; border-radius:999px; padding:3px 10px; white-space:nowrap; }
-  .tag{ color:var(--muted); font-size:15px; margin:0 0 20px; }
-  .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px 18px; margin:14px 0; box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.04); }
-  label{ display:block; font-size:14px; font-weight:600; margin:14px 0 6px; }
+  html{-webkit-text-size-adjust:100%}
+  body{ margin:0; background:var(--ground); color:var(--text); line-height:1.55; font-family:var(--body);
+    font-size:16px; -webkit-font-smoothing:antialiased; }
+  .wrap{ max-width:560px; margin:0 auto; padding:20px 18px calc(64px + env(safe-area-inset-bottom)); }
+
+  /* header */
+  header{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0 2px; }
+  .brand{ display:flex; align-items:baseline; gap:9px; }
+  h1{ font-family:var(--disp); font-size:24px; font-weight:700; margin:0; letter-spacing:-.02em; }
+  .mark{ width:26px; height:26px; border-radius:7px; flex:none; align-self:center;
+    background:linear-gradient(145deg,var(--steel-a),var(--steel-b)); color:#fff; font-family:var(--disp);
+    font-weight:700; font-size:15px; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 1px 2px rgba(35,33,28,.25); }
+  #netbadge{ font-size:11px; font-weight:600; letter-spacing:.02em; border-radius:999px; padding:5px 11px; white-space:nowrap; }
+  .tag{ color:var(--muted); font-size:15px; margin:2px 0 18px; }
+
+  /* surfaces */
+  .card{ background:var(--surface-2); border:1px solid var(--hairline); border-radius:var(--r-lg); padding:20px;
+    margin:14px 0; box-shadow:0 1px 2px rgba(35,33,28,.04), 0 8px 24px rgba(35,33,28,.05); }
+  h2{ font-family:var(--disp); font-size:19px; font-weight:600; letter-spacing:-.01em; margin:0 0 4px; }
+  .lead{ color:var(--muted); font-size:14.5px; margin:0 0 8px; }
+  .help{ color:var(--muted-2); font-size:13.5px; margin:4px 0 8px; }
+  .note{ font-size:13.5px; color:var(--muted-2); background:var(--surface); border:1px solid var(--hairline);
+    border-radius:var(--r); padding:11px 13px; margin:12px 0; }
+
+  /* step heading */
+  .stepline{ display:flex; align-items:center; gap:10px; margin:0 0 10px; }
+  .stepnum{ width:26px; height:26px; flex:none; border-radius:50%; background:var(--orange); color:#fff;
+    font-family:var(--disp); font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center; }
+  .stepline h2{ margin:0; }
+
+  /* inputs: 16px min so iOS never zooms on focus */
+  label{ display:block; font-size:14px; font-weight:600; margin:16px 0 6px; }
   label:first-child{ margin-top:0; }
-  input{ width:100%; font:inherit; font-size:15px; border:1.5px solid #dcd8cc; border-radius:10px; padding:12px; background:#fff; }
-  input:focus{ outline:none; border-color:var(--brand); }
-  button{ font:inherit; font-size:15px; font-weight:700; background:var(--brand); color:#fff; border:none; border-radius:11px; padding:13px 18px; cursor:pointer; margin-top:12px; width:100%; }
-  button:hover{ background:var(--brandd); }
-  button.ghost{ background:#fff; color:var(--ink); border:1.5px solid #dcd8cc; }
-  button.ghost:hover{ background:var(--soft); }
-  .choice{ text-align:left; background:#fff; color:var(--ink); border:1.5px solid var(--line); border-radius:14px; padding:16px 18px; margin-top:12px; }
-  .choice:hover{ border-color:var(--brand); background:#fffdf9; }
-  .choice b{ display:block; font-size:16px; }
+  input[type=text], input:not([type]){ width:100%; font:inherit; font-size:16px; border:1.5px solid #DCD5C4;
+    border-radius:var(--r); padding:14px; background:var(--surface-2); color:var(--text); font-family:var(--mono); }
+  input::placeholder{ font-family:var(--body); color:#A9A395; }
+  input:focus{ outline:none; border-color:var(--orange); box-shadow:0 0 0 3px rgba(217,121,16,.13); }
+
+  /* buttons: 48px min tap target */
+  button{ font:inherit; font-size:16px; font-weight:600; font-family:var(--body); background:var(--orange); color:#fff;
+    border:none; border-radius:var(--r); padding:15px 18px; min-height:52px; cursor:pointer; margin-top:14px; width:100%;
+    transition:background .15s ease, transform .06s ease; }
+  button:hover{ background:var(--orange-dim); }
+  button:active{ transform:translateY(1px); }
+  button:disabled{ opacity:.55; cursor:default; }
+  button.ghost{ background:var(--surface-2); color:var(--muted); border:1.5px solid #DCD5C4; font-weight:500;
+    font-size:15px; min-height:48px; padding:13px 18px; }
+  button.ghost:hover{ background:var(--surface); color:var(--text); }
+
+  /* chooser */
+  .choice{ text-align:left; background:var(--surface-2); color:var(--text); border:1.5px solid var(--hairline);
+    border-radius:var(--r-lg); padding:17px 18px; margin-top:12px; display:flex; align-items:center; gap:14px;
+    box-shadow:0 1px 2px rgba(35,33,28,.04); }
+  .choice:hover{ background:var(--surface-2); border-color:var(--orange); box-shadow:0 2px 6px rgba(217,121,16,.13); }
+  .choice .ico{ font-size:22px; line-height:1; flex:none; }
+  .choice .txt{ min-width:0; }
+  .choice b{ display:block; font-family:var(--disp); font-size:16.5px; font-weight:600; letter-spacing:-.01em; }
   .choice span{ display:block; font-weight:400; color:var(--muted); font-size:13.5px; margin-top:2px; }
-  .choice.quiet{ border-style:dashed; padding:11px 18px; }
-  .choice.quiet b{ font-size:14px; font-weight:600; }
-  .step{ font-size:12px; font-weight:800; color:var(--brand); text-transform:uppercase; letter-spacing:.06em; margin:2px 0 2px; }
-  h2{ font-size:19px; margin:2px 0 4px; }
-  .lead{ color:var(--muted); font-size:14.5px; margin:0 0 6px; }
-  .help{ color:var(--muted); font-size:13px; font-weight:400; margin:4px 0 6px; }
-  .note{ font-size:13.5px; color:var(--muted); background:var(--soft); border-radius:10px; padding:10px 12px; margin:10px 0; }
-  .out{ font-family:ui-monospace,Consolas,monospace; font-size:13px; overflow-wrap:anywhere; white-space:pre-wrap; background:var(--soft); border-radius:10px; padding:11px; margin:8px 0; }
+  .choice.quiet{ border-style:dashed; padding:13px 18px; box-shadow:none; }
+  .choice.quiet b{ font-size:14.5px; }
+
+  /* outputs */
+  .out{ font-family:var(--mono); font-size:13px; line-height:1.6; overflow-wrap:anywhere; white-space:pre-wrap;
+    background:var(--surface); border:1px solid var(--hairline); border-radius:var(--r); padding:12px; margin:10px 0; }
   .out:empty{ display:none; }
-  .wc{ font-size:12px; color:var(--muted); margin:3px 2px 0; min-height:14px; }
-  .ok{ color:var(--ok); font-weight:700; } .bad{ color:var(--bad); font-weight:700; }
-  .back{ display:inline-block; color:var(--muted); font-size:14px; cursor:pointer; margin-bottom:6px; }
-  .back:hover{ color:var(--ink); }
+  .wc{ font-size:12px; color:var(--muted); margin:4px 2px 0; min-height:14px; font-family:var(--body); }
+  .ok{ color:var(--verify); font-weight:600; } .bad{ color:var(--bad); font-weight:600; }
+  /* the emotional peak: a real success panel, not a line of text */
+  #bcastOut:has(.ok){ background:#EEF6F0; border-color:#BFDCC9; }
+  #bcastOut .ok, #showOut .ok, #arriveOut .ok, #balFlowOut .ok, #verifyOut .ok{
+    display:block; font-family:var(--body); font-size:15.5px; line-height:1.5; font-weight:500; }
+  #bcastOut .bad, #showOut .bad, #claimOut .bad, #arriveOut .bad, #verifyOut .bad, #balFlowOut .bad, #setupOut .bad, #bumpOut .bad{
+    display:block; font-family:var(--body); font-size:14.5px; line-height:1.5; font-weight:500; }
+  .out a{ font-family:var(--body); }
+  #cardStatus{ font-family:var(--body); font-size:14px; padding:11px 13px; font-weight:500; }
+  #cardStatus:empty{ display:none; }
+  /* which card am I holding: stays visible inside every flow */
+  #cardChip{ font-family:var(--mono); font-size:11.5px; font-weight:500; color:var(--muted); background:var(--surface);
+    border:1px solid var(--hairline); border-radius:999px; padding:4px 10px; margin-left:2px; white-space:nowrap; }
+
+  .back{ display:inline-block; color:var(--muted); font-size:14px; cursor:pointer; margin:2px 0 8px; padding:6px 2px; }
+  .back:hover{ color:var(--text); }
   .hide{ display:none!important; }
-  #confirmRow{ display:flex; gap:9px; align-items:flex-start; font-weight:500; font-size:14px; }
-  a{ color:var(--brand); font-weight:700; }
-  details{ margin-top:26px; } summary{ color:var(--muted); font-size:13px; cursor:pointer; }
-  #buildhash{ font-size:11px; color:var(--muted); word-break:break-all; margin:8px 0; }
-  #selftest{ font-family:ui-monospace,Consolas,monospace; font-size:11.5px; color:var(--muted); white-space:pre-wrap; }
+  #confirmRow{ display:flex; gap:11px; align-items:flex-start; font-weight:500; font-size:14.5px; margin-top:14px;
+    background:var(--surface); border:1px solid var(--hairline); border-radius:var(--r); padding:13px; }
+  #confirmRow input{ width:auto; margin-top:2px; flex:none; }
+  a{ color:var(--orange-dim); font-weight:600; }
+  details{ margin-top:28px; } summary{ color:var(--muted); font-size:13.5px; cursor:pointer; padding:6px 0; }
+  #buildhash{ font-size:11px; color:var(--muted); word-break:break-all; margin:8px 0; font-family:var(--mono); }
+  #selftest{ font-family:var(--mono); font-size:11.5px; color:var(--muted); white-space:pre-wrap; }
   #status{ font-size:12px; color:var(--muted); margin-top:6px; }
+  footer{ text-align:center; color:var(--muted); font-size:12px; margin-top:26px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>Bitcard</h1>
+    <div class="brand"><span class="mark">B</span><h1>Bitcard</h1><span id="cardChip" class="hide"></span></div>
     <span id="netbadge"></span>
   </header>
   <p class="tag">A gift of bitcoin. No app, no sign-up.</p>
@@ -65,10 +130,10 @@
       <input id="cardUri" placeholder="bitcard:..." autocomplete="off" autocapitalize="off" spellcheck="false">
       <div id="cardStatus" class="out"></div>
     </div>
-    <p class="lead" style="margin:18px 0 0">First, which one are you?</p>
-    <button id="pathGive" class="choice"><b>🎁&nbsp; I'm giving this card</b><span>Put bitcoin on it, then give it.</span></button>
-    <button id="pathClaim" class="choice"><b>💰&nbsp; This card was given to me</b><span>Move the bitcoin on it to your own wallet.</span></button>
-    <button id="pathBal" class="choice quiet"><b>Just checking the balance?</b><span>You only need the 12 handwritten words. Keep the panel sealed.</span></button>
+    <p class="lead" style="margin:20px 0 0">First, which one are you?</p>
+    <button id="pathGive" class="choice"><span class="ico">🎁</span><span class="txt"><b>I'm giving this card</b><span>Put bitcoin on it, then give it.</span></span></button>
+    <button id="pathClaim" class="choice"><span class="ico">💰</span><span class="txt"><b>This card was given to me</b><span>Move the bitcoin on it to your own wallet.</span></span></button>
+    <button id="pathBal" class="choice quiet"><span class="txt"><b>Just checking the balance?</b><span>You only need the 12 handwritten words. Keep the panel sealed.</span></span></button>
   </div>
 
   <!-- GIVE FLOW -->
@@ -76,23 +141,20 @@
     <span class="back" id="giveBack">← back</span>
     <p class="lead">Three steps: write the words, check them, add bitcoin. (Was this card given to you, with words already written on it? Go back and choose: This card was given to me.)</p>
     <div class="card">
-      <div class="step">Step 1</div>
-      <h2>Get your 12 words</h2>
+      <div class="stepline"><span class="stepnum">1</span><h2>Get your 12 words</h2></div>
       <p class="lead">Tap the button and we'll create 12 words. Write them on the card's blank "your half" lines. Each tap makes a fresh set, so don't tap again after you've written them down.</p>
       <button id="setupBtn">Make my 12 words</button>
       <div id="setupOut" class="out"></div>
     </div>
     <div class="card">
-      <div class="step">Step 2</div>
-      <h2>Double-check what you wrote</h2>
+      <div class="stepline"><span class="stepnum">2</span><h2>Double-check what you wrote</h2></div>
       <p class="lead">Re-type the 12 words exactly as you wrote them on the card, in order, with a space between each word (extra spaces or capitals are fine). If they match, you know the card itself can unlock the bitcoin later.</p>
       <input id="verifyWords" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
       <button id="verifyBtn" class="ghost">Check my words</button>
       <div id="verifyOut" class="out"></div>
     </div>
     <div class="card hide" id="fundBox">
-      <div class="step">Step 3</div>
-      <h2>Add bitcoin, seal, give</h2>
+      <div class="stepline"><span class="stepnum">3</span><h2>Add bitcoin, seal, give</h2></div>
       <p class="lead">From your own wallet, send the amount you want to give to the address below. One honest note: a network fee comes off when the card is claimed, so very small amounts (a few thousand sats) can be mostly eaten by it. Then use the button below to check on it: once it says the payment is confirmed, seal the words and give the card.</p>
       <div id="fundOut" class="out"></div>
       <button id="arriveBtn" class="ghost">Check if it arrived</button>
@@ -109,8 +171,7 @@
       <p class="lead">Let's see what's on this card, then move it into a wallet of your own, one step at a time. Nothing moves until you tick a box and confirm at the final step, and you can start over at any point before that.</p>
     </div>
     <div class="card">
-      <div class="step">Step 1</div>
-      <h2>Enter the words from the card</h2>
+      <div class="stepline"><span class="stepnum">1</span><h2>Enter the words from the card</h2></div>
       <p class="lead">You'll need both sets of 12 words from the back of the card, in the same order they appear on it. Type each set in order, with a space between each word (extra spaces or capitals are fine).</p>
       <label>The 12 printed words under the scratch panel (the sealed half, scratch it off now)</label>
       <input id="claimP1" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -124,8 +185,7 @@
       <button id="retryBal" class="ghost hide">Try again</button>
     </div>
     <div class="card hide" id="sendSection">
-      <div class="step">Step 2</div>
-      <h2>Send it to your wallet</h2>
+      <div class="stepline"><span class="stepnum">2</span><h2>Send it to your wallet</h2></div>
       <label>Your wallet address</label>
       <p class="help">Open any bitcoin wallet app you trust, tap Receive, and copy the address it shows into this box. It usually starts with bc1. An address is safe to copy and paste, it's like an account number, not a password.</p>
       <input id="dest" placeholder="bc1..." autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -133,7 +193,7 @@
       <div id="destOut" class="out"></div>
       <button id="reviewBtn">Review before sending</button>
       <div id="claimOut" class="out"></div>
-      <label class="hide" id="confirmRow"><input type="checkbox" id="destConfirm" style="width:auto;margin-top:3px"> I checked the address above and it is correct.</label>
+      <label class="hide" id="confirmRow"><input type="checkbox" id="destConfirm"> I checked the address above and it is correct.</label>
       <button id="bcastBtn" class="hide">Send my bitcoin</button>
       <div id="bcastOut" class="out"></div>
       <button id="bumpBtn" class="ghost hide">Payment not showing up? Speed it up</button>
@@ -162,6 +222,8 @@
     <div id="selftest"></div>
     <div id="status">starting...</div>
   </details>
+
+  <footer>bitcards.xyz</footer>
 </div>
 <!--APPSCRIPT-->
 </body>

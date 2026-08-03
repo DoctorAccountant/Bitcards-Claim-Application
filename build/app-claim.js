@@ -167,11 +167,17 @@ function init(){
   // scan-and-go: a scanned card arrives in the URL fragment (never sent to any server)
   try{ const h = (location.hash||'').replace(/^#/,'').trim(); if(h){ $('cardUri').value = h.startsWith('bitcard:') ? h : ('bitcard:'+h); } }catch(e){}
 
+  // presentation only: a header chip so the loaded card stays visible after the chooser is hidden
+  function setChip(text){
+    const el = $('cardChip'); if(!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('hide', !text);
+  }
   function refreshCardStatus(){
     const val = $('cardUri').value.trim();
-    if(!val){ $('cardStatus').textContent = ''; return; }
-    try{ const c = loadCard(); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; }
-    catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Scan the QR on the back of the card with your phone camera, or paste the whole code or link here.'; }
+    if(!val){ $('cardStatus').textContent = ''; setChip(''); return; }
+    try{ const c = loadCard(); $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; setChip('No. '+c.serial); }
+    catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Scan the QR on the back of the card with your phone camera, or paste the whole code or link here.'; setChip(''); }
   }
   // audit: the card box changing (paste, or a scan into the same open tab) must wipe ALL flow state, so card A can
   // never be funded/spent with card B in hand. A fresh page load already starts clean; this covers same-session swaps.
