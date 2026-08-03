@@ -3,7 +3,7 @@
 // this file is the UI layer that calls it. All the sweep-security checks (§7) are preserved.
 // Copy rules: no em dashes anywhere; JS strings avoid apostrophes (use full words); HTML may use contractions.
 import { $, log, bip39, wordlist, btc, BTCNET, NET, hexlib, b64u,
-  parseAndVerifyCard, normCardInput, buildRecord, halfScalar, pubOfScalar, setupAddress, combine, bigToBytes32, showBuildHash,
+  parseAndVerifyCard, normCardInput, normWords, buildRecord, halfScalar, pubOfScalar, setupAddress, combine, bigToBytes32, showBuildHash,
   estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed } from './core.js';
 import { getUtxos, feeRate, broadcastTx } from './net.js';   // network layer (online app only)
 import { ENDPOINTS } from './endpoints.js';                  // node URLs (online app only); the offline tool never imports this
@@ -12,9 +12,7 @@ window.addEventListener('error', e => { const s=document.getElementById('status'
 
 function show(id){ ['chooser','giveFlow','claimFlow','balFlow'].forEach(x=> $(x).classList.toggle('hide', x!==id)); try{ window.scrollTo(0,0); }catch(e){} }
 
-// word-input helpers: normalize (halfScalar trims/lowers but does not collapse inner whitespace)
-// and validate per field so errors name the box and the problem instead of one catch-all.
-function normWords(s){ return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+// validate per field so errors name the box and the problem instead of one catch-all (normWords is shared, in core.js)
 function checkWords(raw, boxName){
   const m = normWords(raw);
   const words = m ? m.split(' ') : [];

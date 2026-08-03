@@ -6,11 +6,10 @@
 // It NEVER touches the network: imports only pure crypto + DOM helpers from core.js (no getUtxos / broadcastTx / fetch),
 // page CSP is connect-src 'none'. Works with EXISTING v0.4 cards unchanged (public record in, no card change needed).
 // Copy rules: no em dashes; JS single-quoted strings avoid apostrophes.
-import { $, log, NET, bip39, wordlist, halfScalar, pubOfScalar, setupAddress, combine, parseAndVerifyCard, normCardInput, toWIF, hexlib, showBuildHash } from './core.js';
+import { $, log, NET, bip39, wordlist, halfScalar, pubOfScalar, setupAddress, combine, parseAndVerifyCard, normCardInput, normWords, toWIF, hexlib, showBuildHash } from './core.js';
 
 window.addEventListener('error', e => { const s=document.getElementById('status'); if(s) s.textContent='BUNDLE ERROR: '+(e.message||(e.error&&e.error.message)||e); });
 
-function normWords(s){ return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
 function checkWords(raw, boxName){
   const m = normWords(raw);
   const words = m ? m.split(' ') : [];

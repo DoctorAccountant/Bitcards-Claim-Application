@@ -2,7 +2,7 @@
 // A person under stress with a phone keyboard will produce all of these, and the difference between
 // "card loaded" and a confusing error is whether the parser tolerates them.
 // Run: node test-paste.mjs
-import { normCardInput, parseAndVerifyCard } from './core.js';
+import { normCardInput, parseAndVerifyCard, normWords, wordlist, halfScalar } from './core.js';
 
 const REC = 'AQABAQOrOxUP6VvN0TIX0jhu801U5qRPbtBVoprrQ1nfUazLJgAAA-c';   // real minted card, serial 999
 const URL = 'https://bitcards.xyz/app.html#' + REC;
@@ -59,6 +59,39 @@ rejects('some other site link',      'https://example.com/#somethingelse');
   try{ serial = parseAndVerifyCard(normCardInput(swapped)).serial; }catch(e){ serial = 'rejected'; }
   ok('a corrupted character does not silently become another card', serial === 'rejected' || serial !== 999, serial);
 }
+
+// --- word boxes: characters that phones, chat apps and PDFs insert invisibly ---
+// These must be accepted. A rejection here shows the customer a word that looks perfectly correct,
+// so they retype it identically forever and conclude the card is broken.
+const WORDS = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
+const accepts = (name, raw) => {
+  const m = normWords(raw);
+  const w = m ? m.split(' ') : [];
+  let why = null;
+  if (w.length !== 12) why = 'count ' + w.length;
+  else for (let i = 0; i < 12; i++) if (wordlist.indexOf(w[i]) < 0) { why = 'word ' + (i+1) + ' ' + JSON.stringify(w[i]); break; }
+  if (!why) { try { halfScalar(m); } catch (e) { why = 'checksum'; } }
+  ok(name, why === null, why);
+};
+accepts('plain 12 words',                 WORDS);
+accepts('upper case',                     WORDS.toUpperCase());
+accepts('double spaces',                  WORDS.replace(/ /g, '  '));
+accepts('newlines as separators',         WORDS.replace(/ /g, '\n'));
+accepts('tabs as separators',             WORDS.replace(/ /g, '\t'));
+accepts('non-breaking spaces',            WORDS.replace(/ /g, ' '));
+accepts('narrow no-break spaces',         WORDS.replace(/ /g, ' '));
+accepts('ideographic spaces',             WORDS.replace(/ /g, '　'));
+accepts('BOM at start',                   '﻿' + WORDS);
+accepts('zero-width space between words', WORDS.split(' ').join('​ '));
+accepts('zero-width joiner inside a word',WORDS.replace('legal', 'le‍gal'));
+accepts('soft hyphen inside a word',      WORDS.replace('winner', 'win­ner'));
+accepts('comma separated',                WORDS.split(' ').join(', '));
+accepts('semicolon separated',            WORDS.split(' ').join('; '));
+accepts('leading and trailing space',     '  ' + WORDS + '  ');
+
+// wrong counts must still be caught, not silently fixed
+ok('11 words still rejected', normWords(WORDS.split(' ').slice(0,11).join(' ')).split(' ').length === 11);
+ok('13 words still rejected', normWords(WORDS + ' extra').split(' ').length === 13);
 
 console.log('\n' + (fail === 0 ? 'PASTE OK (' + pass + ' passed)' : 'PASTE FAILED (' + fail + ' failures)'));
 process.exit(fail === 0 ? 0 : 1);

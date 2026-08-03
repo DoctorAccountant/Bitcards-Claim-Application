@@ -94,6 +94,17 @@ export function parseCard(uri){
 }
 export const parseAndVerifyCard = parseCard; // back-compat alias for existing callers
 
+// Normalize a typed or pasted word list. The invisible characters below are inserted routinely by chat
+// apps, PDFs and web pages, and they are the worst possible failure: the rejected word LOOKS correct on
+// screen, so the customer retypes it identically forever. Stripping them changes no security property,
+// because the BIP39 checksum still has to pass afterwards.
+export function normWords(s){
+  return String(s == null ? '' : s)
+    .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '')   // zero-width space/joiners, BOM, soft hyphen
+    .replace(/[,;]+/g, ' ')                        // comma or semicolon separated lists
+    .trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 // Accept whatever a person can plausibly paste. Real inputs seen in the wild include the whole link from a
 // camera app, a link forwarded in a message with words around it, a link whose "#" arrived percent-encoded,
 // the bare record, a "bitcard:" code, and any of those wrapped in spaces, newlines, or trailing punctuation.
