@@ -101,26 +101,29 @@ Because Part 1 is destroyed, a mismatch between the sealed words and the `P1` in
 
 The QR carries only the 41-byte data record (§4.1, §4.3) — **no signature.** It may direct the user to a **hash-verified** app (§4.4); the verified app (confirmed by fetched-file SHA-256 + self-displayed build hash) together with the **tamper-evident physical card** are the trust anchors. The record itself is not authenticated by any issuer key (see §4.2); genuineness of a *branded* card is a physical/packaging + optional serial-registry concern, not a crypto gate.
 
-### 4.1 Card record (frozen — 41 bytes)
+### 4.1 Card record (frozen — record v1: 41 bytes, record v2: 46 bytes)
 | Offset | Len | Field | Value |
 |---|---|---|---|
-| 0 | 1 | version | `0x01` |
+| 0 | 1 | version | `0x01` (record v1) · `0x02` (record v2) |
 | 1 | 1 | network | `0x00` mainnet · `0x01` testnet · `0x02` signet |
 | 2 | 1 | scripttype | `0x01` = P2WPKH |
 | 3 | 1 | kdf_id | `0x01` = BIP39(en,NFKD,empty) → PBKDF2-HMAC-SHA512 x2048 → BIP32 master priv (HMAC-SHA512, key=`"Bitcoin seed"`, left 32) |
 | 4 | 33 | P1 | compressed secp256k1 public key of the maker's half |
 | 37 | 4 | serial | `uint32`, big-endian |
+| 41 | 5 | checksum | **record v2 only.** First 5 bytes of `SHA-256(record[0..40])`, i.e. over the preceding 41 bytes with `version = 0x02`. |
 
-**Serials are display/inventory only.** A serial is not authenticated (anyone may mint a card with any serial), so no tool may use it for authorization, recall, or any trust decision. Brand-level recall/lookup, if ever needed, requires a separate signed registry keyed by serial; until that exists, treat serials as cosmetic.
+**Record v2 (2026): integrity checksum.** Record v1 has no integrity check, so roughly 47% of single-character substitutions in a hand-typed card code still decode to a structurally valid record carrying a *different* valid `P1`. In the give flow that silently addresses funds to a key nobody holds (QR scanning is immune — Reed-Solomon decoding either returns correct bytes or fails — but typed and OCR'd codes are not). Record v2 appends a 5-byte truncated SHA-256 so a corrupted code is rejected outright (odds of a random corruption passing: 2^-40). The checksum covers **every** preceding byte including the serial. A conformant parser: **MUST** verify the checksum of a v2 record and reject on mismatch; **MUST** reject unknown version bytes; and **MUST continue to accept record v1 forever** — v1 cards printed in 2026 are bearer instruments that remain valid for as long as one exists. New cards **MUST** be minted as v2. 46 bytes encodes to 62 base64url characters, which keeps the printed QR at the same version and module count as v1 (measured: QR version 5, 37 modules, at ECC-L).
+
+**Serials are display/inventory only.** A serial is not authenticated (anyone may mint a card with any serial), so no tool may use it for authorization, recall, or any trust decision. The v2 checksum protects a serial against *accidental* corruption, not against deliberate forgery. Brand-level recall/lookup, if ever needed, requires a separate signed registry keyed by serial; until that exists, treat serials as cosmetic.
 
 ### 4.2 Card authenticity — REMOVED in v0.4
 Earlier drafts (v0.2–v0.3) signed the record with an Ed25519 maker key. **v0.4 removes this entirely.** Cards carry no signature and the app verifies no issuer key. This does not affect fund security (the 2-of-2 scheme, §3, is untouched) or the QC pairing check (§2a re-derives `P1` from the sealed words directly). Brand-authenticity (distinguishing a genuine-brand card from a counterfeit sold under the name) is out of scope of the crypto; if wanted at retail it is a serial-lookup registry + physical anti-counterfeit, not a signature.
 
 ### 4.3 QR payload — data record (v0.4)
 ```
-record(41)  ->  base64url_nopad   // 41 bytes -> ~55 chars
+record(41 or 46)  ->  base64url_nopad   // v1: 41 bytes -> 55 chars; v2: 46 bytes -> 62 chars
 ```
-The QR payload is just the base64url of the 41-byte record — **no signature appended.** The app decodes the record, validates the enums (version / network / scripttype / kdf — rejecting unknown values and any network mismatch) and that `P1` is a valid secp256k1 point, **before any key material is generated.** Nothing in the QR is secret; it does not reveal the funding address (that also needs Part 2).
+The QR payload is just the base64url of the record — **no signature appended.** The app decodes the record, validates the enums (version / network / scripttype / kdf — rejecting unknown values and any network mismatch), verifies the v2 checksum (§4.1) before reading any other field, and checks that `P1` is a valid secp256k1 point, **before any key material is generated.** Nothing in the QR is secret; it does not reveal the funding address (that also needs Part 2).
 
 ### 4.4 QR delivery — domain pointer, permanence via published hash + mirrors
 The QR encodes:
