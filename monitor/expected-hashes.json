@@ -1,7 +1,7 @@
 {
   "comment": "Expected SHA-256 of the LIVE deployed artifacts. SOP-4: update this file as part of every release, immediately after verifying the live hashes.",
   "updated": "2026-08-03",
-  "releaseCommit": "PENDING",
+  "releaseCommit": "6581d68",
   "artifacts": {
     "app.html": "4667adc977cf3e08f472051687602e3eb337143dcb04b9cc7e28637338db2ce9",
     "offline.html": "46853db1210889efdd9879549a97331a69e8bdb43c2ab34664fa8ea491256e2a"
