@@ -70,20 +70,43 @@ export function bigToBytes32(x){ return hexlib.decode(x.toString(16).padStart(64
 export function u32be(x){ return new Uint8Array([(x>>>24)&255,(x>>>16)&255,(x>>>8)&255,x&255]); }
 
 // ---- card record + verification (spec §4) ----
-export function buildRecord(P1bytes, serial){
-  const r = new Uint8Array(41);
-  r[0]=0x01; r[1]=NETWORK; r[2]=SCRIPT; r[3]=KDF;
+// v1 (41 bytes) has NO integrity check: ~47% of single-character corruptions of a card code still decode
+// into a structurally valid record carrying a DIFFERENT valid key, and the giving flow would fund an
+// address no key opens. v2 appends checksum(5) = first 5 bytes of SHA-256 over the preceding 41 bytes,
+// covering everything including the serial. Chosen over bech32m deliberately: 46 bytes is 62 base64url
+// chars, which keeps the printed QR at the SAME version and module size as v1 by arithmetic, not by
+// encoder tricks a future tool could silently drop. Odds a random corruption survives: 1 in 2^40.
+export const RECORD_V1_LEN = 41, RECORD_V2_LEN = 46, CHECKSUM_LEN = 5;
+export function recordChecksum(bytes41){ return sha256(bytes41).slice(0, CHECKSUM_LEN); }
+export function buildRecord(P1bytes, serial){   // new records are v2; v1 exists only on already-printed cards
+  const r = new Uint8Array(RECORD_V2_LEN);
+  r[0]=0x02; r[1]=NETWORK; r[2]=SCRIPT; r[3]=KDF;
   r.set(P1bytes, 4);
   r.set(u32be(serial>>>0), 37);
+  r.set(recordChecksum(r.slice(0, RECORD_V1_LEN)), RECORD_V1_LEN);
   return r;
 }
-// Parse + structurally validate a card record (open standard v0.4 — cards carry NO issuer signature).
+// Parse + structurally validate a card record (open standard — cards carry NO issuer signature).
+// PERMANENCE RULE: v1 support must never be removed. 300 v1 cards were printed in 2026 and remain valid
+// bearer instruments for as long as one of them exists. test-record-v2.mjs pins a frozen v1 record so a
+// tree that cannot read v1 fails its gate.
 export function parseCard(uri){
   uri = (uri||'').trim();
   if(!uri.startsWith('bitcard:')) throw new Error('not a bitcard: card');
   const record = b64u.decode(uri.slice(8));
-  if(record.length !== 41) throw new Error('bad card length');
-  if(record[0]!==0x01) throw new Error('unsupported version');
+  if(record.length !== RECORD_V1_LEN && record.length !== RECORD_V2_LEN) throw new Error('bad card length');
+  const version = record[0];
+  if(version !== 0x01 && version !== 0x02) throw new Error('unsupported version');
+  if(version === 0x01 && record.length !== RECORD_V1_LEN) throw new Error('bad card length');
+  if(version === 0x02 && record.length !== RECORD_V2_LEN) throw new Error('bad card length');
+  if(version === 0x02){
+    // checksum FIRST: on a corrupted code every later field is noise, and a clean reject here is the
+    // entire reason v2 exists. Constant-time comparison is unnecessary; nothing here is secret.
+    const want = recordChecksum(record.slice(0, RECORD_V1_LEN));
+    for(let i = 0; i < CHECKSUM_LEN; i++){
+      if(record[RECORD_V1_LEN + i] !== want[i]) throw new Error('card code fails its checksum (one character is probably mistyped)');
+    }
+  }
   if(record[1]!==NETWORK) throw new Error('network mismatch');
   if(record[2]!==SCRIPT) throw new Error('unsupported script type');
   if(record[3]!==KDF) throw new Error('unsupported kdf');
@@ -91,7 +114,7 @@ export function parseCard(uri){
   const P1hex = hexlib.encode(P1);
   pointFromPub(P1hex); // reject malformed cards (P1 not a valid curve point) before any key material
   const serial = ((record[37]<<24)|(record[38]<<16)|(record[39]<<8)|record[40])>>>0;
-  return { P1hex, serial };
+  return { P1hex, serial, version };
 }
 export const parseAndVerifyCard = parseCard; // back-compat alias for existing callers
 

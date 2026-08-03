@@ -51,7 +51,7 @@ function runSelfTest(){
     const P1 = pubOfScalar(d1);
     const uri = 'bitcard:' + b64u.encode(buildRecord(P1, 42));
     let posOK = false; try{ const v = parseAndVerifyCard(uri); posOK = v.P1hex === hexlib.encode(P1) && v.serial === 42; }catch(e){}
-    let negOK = false; try{ parseAndVerifyCard(uri.slice(0, uri.length-4)); }catch(e){ negOK = /length|bitcard|version|curve|point|record/i.test(e.message); }
+    let negOK = false; try{ parseAndVerifyCard(uri.slice(0, uri.length-4)); }catch(e){ negOK = /length|bitcard|version|curve|point|record|padding|base64|checksum/i.test(e.message); }
     $('selftest').textContent = 'self-check: published reference card '+fv.ok+' · aggregation '+aggOK+' · record round-trip '+posOK+' · malformed rejected '+negOK+' → '+((fv.ok&&aggOK&&posOK&&negOK)?'PASS':'FAIL');
   }catch(e){ $('selftest').textContent = 'self-check error: '+e.message; }
 }

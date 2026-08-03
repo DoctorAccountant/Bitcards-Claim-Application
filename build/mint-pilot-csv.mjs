@@ -17,9 +17,11 @@ import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { NET } from './config.js';
-// derivation comes from the ONE audited implementation, never a private copy: a divergence between
-// mint and the claim app would mint cards that fund normally and cannot be opened.
-import { halfScalar, verifyFrozenVector } from './core.js';
+// derivation AND record construction come from the ONE audited implementation, never a private copy: a
+// divergence between mint and the claim app would mint cards that fund normally and cannot be opened.
+// buildRecord emits v2 (46 bytes, 5-byte checksum over the first 41), so every batch from here on is
+// self-checking: a mistyped card code fails its own checksum with no embedded batch table needed.
+import { halfScalar, verifyFrozenVector, buildRecord, parseAndVerifyCard } from './core.js';
 
 const APP_URL = 'https://bitcards.xyz/app.html';   // the live, audited claim app the QR opens
 const n = secp.CURVE.n;
@@ -28,10 +30,13 @@ function mint(serial){
   let m1, d1;
   for(;;){ m1 = bip39.generateMnemonic(wordlist, 128); try{ d1 = halfScalar(m1); break; }catch(e){ /* ~1e-39; regenerate */ } }
   const P1 = secp.getPublicKey(hex.decode(d1.toString(16).padStart(64, '0')), true);
-  const rec = new Uint8Array(41);
-  rec[0]=1; rec[1]=NET.networkByte; rec[2]=1; rec[3]=1; rec.set(P1, 4);
-  rec[37]=(serial>>>24)&255; rec[38]=(serial>>>16)&255; rec[39]=(serial>>>8)&255; rec[40]=serial&255;
-  const recordB64 = b64u.encode(rec);
+  const recordB64 = b64u.encode(buildRecord(P1, serial));
+  // round-trip through the PRODUCTION parser before anything is written: the record a customer scans must
+  // be readable by the exact code that will read it, checksum included
+  const back = parseAndVerifyCard('bitcard:' + recordB64);
+  if(back.P1hex !== hex.encode(P1) || back.serial !== serial || back.version !== 2){
+    console.error('REFUSING: freshly built record does not round-trip through the production parser'); process.exit(1);
+  }
   return { serial, words: m1.split(' '), p1Hex: hex.encode(P1), recordB64, qrUrl: APP_URL + '#' + recordB64 };
 }
 

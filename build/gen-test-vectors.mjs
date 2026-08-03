@@ -6,7 +6,7 @@
 // this file ever exercised the "mod n" reduction, even though roughly half of all real cards need it.
 //
 // Run: node gen-test-vectors.mjs   (writes ../bitcard-test-vectors.json)
-import { halfScalar, toWIF } from './core.js';
+import { halfScalar, toWIF, buildRecord, parseAndVerifyCard, pubOfScalar, b64u } from './core.js';
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
 import * as btc from '@scure/btc-signer';
 import { hex } from '@scure/base';
@@ -52,9 +52,30 @@ const out = {
   generatedBy: 'build/gen-test-vectors.mjs against build/core.js (@noble/curves, @scure/bip39, @scure/btc-signer). All values computed, none transcribed.',
   validatedOnChain: 'testnet tx d5245874007557429eb8e4267490e1190ed8ac37c763cad5934606a66cdfc96c, confirmed block 5013091 (real funded sweep of an aggregate P1+P2 address)',
   cardRecord: {
-    note: 'v0.4 - cards carry NO issuer signature. The QR payload is base64url(record) with nothing appended. record(41) = version(1) | network(1) | scripttype(1) | kdf(1) | P1(33, compressed) | serial(4, uint32 BE).',
+    note: 'Cards carry NO issuer signature (open, permissionless standard). The QR payload is base64url(record) with nothing appended. Two record versions exist. v1(41) = version=1(1) | network(1) | scripttype(1) | kdf(1) | P1(33, compressed) | serial(4, uint32 BE). v2(46) = the same 41 bytes with version=2, followed by checksum(5) = the first 5 bytes of SHA-256 over those 41 bytes. v1 has NO integrity check: roughly 47% of single-character substitutions in a v1 card code still decode to a structurally valid record carrying a different valid key, so a hand-typed code can silently address funds to a key nobody holds. v2 closes that: a conformant parser MUST verify the checksum and reject on mismatch. v1 MUST remain accepted forever; v1 cards printed in 2026 are bearer instruments.',
     recordHexExample: '0101010103d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee049400000001',
-    encoding: "cardURI = 'bitcard:' + base64url_nopad(record). The claim app validates version/network/scripttype/kdf and that P1 is a valid secp256k1 point; there is no signature to verify."
+    recordV2: (() => {
+      const P1 = pubOfScalar(halfScalar(M.abandon));
+      const rec = buildRecord(P1, 123);
+      const b = b64u.encode(rec);
+      const chk = parseAndVerifyCard('bitcard:' + b);   // generator refuses to publish a vector its own parser rejects
+      if (chk.serial !== 123 || chk.version !== 2) throw new Error('v2 vector does not round-trip');
+      return {
+        note: 'Same P1 as vector 1 part1 (a published BIP39 test mnemonic), serial 123, so every byte is reproducible.',
+        recordHex: hex.encode(rec),
+        cardURI: 'bitcard:' + b,
+        checksumHex: hex.encode(rec.slice(41)),
+        corruptionVectors: [
+          { note: 'serial byte flipped: checksum MUST reject (the checksum covers the serial)',
+            cardURI: 'bitcard:' + b64u.encode((() => { const r = Uint8Array.from(rec); r[40] ^= 1; return r; })()), expect: 'reject' },
+          { note: 'one P1 byte flipped: checksum MUST reject',
+            cardURI: 'bitcard:' + b64u.encode((() => { const r = Uint8Array.from(rec); r[10] ^= 1; return r; })()), expect: 'reject' },
+          { note: 'compressed-point prefix flipped 03 to 02 (a valid curve point, the dangerous v1 case): checksum MUST reject',
+            cardURI: 'bitcard:' + b64u.encode((() => { const r = Uint8Array.from(rec); r[4] ^= 1; return r; })()), expect: 'reject' }
+        ]
+      };
+    })(),
+    encoding: "cardURI = 'bitcard:' + base64url_nopad(record). The claim app validates version/network/scripttype/kdf, the v2 checksum, and that P1 is a valid secp256k1 point; there is no signature to verify."
   },
   vectors: [
     vec(M.abandon, M.legal, 'canonical pair; d1+d2 < n so no reduction occurs'),

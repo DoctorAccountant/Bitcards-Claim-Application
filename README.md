@@ -16,7 +16,7 @@ A physical, non-custodial bitcoin gift card. The card carries a key split into t
 
 ## The trust model in one paragraph
 
-Cards carry no issuer key and the app verifies no issuer signature (v0.4 removed it deliberately: this is an open, permissionless standard, like BIP39). A card QR is just `base64url` of a 41-byte public record. Funds are protected by the two-half key, not by anything Bitcard controls. Your words never leave your device.
+Cards carry no issuer key and the app verifies no issuer signature (v0.4 removed it deliberately: this is an open, permissionless standard, like BIP39). A card QR is just `base64url` of a public record: 41 bytes (record v1, the 2026 pilot cards) or 46 bytes (record v2, all later cards, which append a 5-byte SHA-256 checksum so a mistyped card code is rejected instead of silently addressing funds to a key nobody holds). Both versions stay supported forever. Funds are protected by the two-half key, not by anything Bitcard controls. Your words never leave your device.
 
 ## What you must trust (and what you do not)
 

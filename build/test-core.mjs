@@ -31,7 +31,9 @@ console.log('card record round-trips through parser + P1/serial match:', parseOk
 pass = pass && parseOk;
 
 let neg = false;   // malformed (truncated) card must be rejected
-try { parseAndVerifyCard(uri.slice(0, uri.length - 4)); } catch (e) { neg = /length|bitcard|version|curve|point|record/i.test(e.message); }
+// v2 truncation dies in the base64 decoder ('Non-zero padding') before the length check can even run,
+// so the accepted-reason list includes decoder-level rejections. Any of these means it failed closed.
+try { parseAndVerifyCard(uri.slice(0, uri.length - 4)); } catch (e) { neg = /length|bitcard|version|curve|point|record|padding|base64|checksum/i.test(e.message); }
 console.log('malformed card rejected:', neg);
 pass = pass && neg;
 
