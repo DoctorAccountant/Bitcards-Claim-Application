@@ -68,7 +68,9 @@
       <li><b>Download</b> this page: <a id="dlLink" href="offline.html" download="bitcard-offline.html">save bitcard-offline.html</a> (or press Ctrl+S and choose "HTML only").</li>
       <li>Check its SHA-256 matches the value published at bitcards.xyz (for example, Get-FileHash on Windows, or shasum -a 256).</li>
       <li><b>Disconnect from the internet,</b> then open the saved file. Word entry unlocks automatically.</li>
+      <li>When you are finished, press Done to clear the screen, close the page, and only then reconnect.</li>
     </ol>
+    <p style="margin:8px 0 0">One honest note: this page can tell that it was opened from a saved file, but it cannot tell whether your internet is actually switched off. What protects you is that this file contains no networking code at all, so it has no way to send anything anywhere.</p>
     Small gift and you would rather not bother? Use the quick page at bitcards.xyz/app.html instead.
   </div>
 
@@ -87,25 +89,42 @@
     <span class="back" id="setupBack">back</span>
     <h2 style="font-size:18px;margin:2px 0 4px">Set up this card offline</h2>
     <p class="lead">This makes the card's 12 handwritten words and works out the deposit address here on this device, so no website is involved in setting up your card. <b>Leave the scratch panel sealed.</b></p>
-    <div class="note">You will send bitcoin from your own wallet to the address this shows. Because this device is offline, do that from a different device, or reconnect only after you have written the words down and noted the address.</div>
-    <button id="genBtn">Make the 12 words and show the deposit address</button>
+    <div class="note">You will send bitcoin from your own wallet to the address this tool works out. Because this device is offline, do that from a different device, or reconnect only after you have written the words down and noted the address.</div>
+    <button id="genBtn">Make the 12 words for this card</button>
+    <button id="haveWordsBtn" class="choice" style="margin-top:14px">I already wrote words on this card, just show me its deposit address</button>
     <div id="genOut" class="out"></div>
   </div>
 
+  <!-- Step 1 of setup: the words, and ONLY the words. The deposit address stays hidden until the buyer proves
+       they wrote them down correctly, because funding an address whose words were miscopied loses the money. -->
   <div class="card hide" id="setupResult">
-    <label>Write these 12 words on the card's numbered lines, in order</label>
+    <label>1. Write these 12 words on the card's numbered lines, in order</label>
     <div class="keyrow" id="outWords"></div>
-    <div class="warn" style="margin-top:10px"><b>These words are half the key to the bitcoin you are about to send.</b> Write them on the card with a pen. Do not photograph them, do not type them anywhere else, and check every word before sending any bitcoin. If they are lost, the bitcoin is gone: there is no backup and nobody can recover it.</div>
+    <div class="warn" style="margin-top:10px"><b>These words are half the key to the bitcoin you are about to send.</b> Write them on the card with a pen. Do not photograph them, do not type them anywhere else. If they are lost or miscopied, the bitcoin is gone: there is no backup and nobody can recover it.</div>
 
+    <label>2. Now re-type what you actually wrote on the card</label>
+    <p class="lead">This is required, not optional. It is the only thing standing between a miscopied word and bitcoin that can never be opened.</p>
+    <textarea id="verifyWords" rows="3" placeholder="Type the 12 words with a space between each one" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+    <button id="verifyBtn">Check my writing and show the deposit address</button>
+    <div id="verifyOut" class="out"></div>
+  </div>
+
+  <!-- Revealed only after the re-typed words reproduce the same address. -->
+  <div class="card hide" id="addrBox">
     <label>Deposit address for this card (send the gift here)</label>
     <div class="addr" id="outSetupAddr"></div>
-    <div class="note">Check the words you wrote on the card match the list above, character for character, <b>before</b> you send any bitcoin. To double check later, come back to this tool, choose "Set up a card", and instead use the verify box below: typing the card code plus the words you wrote must produce this same deposit address.</div>
-
-    <label>Verify what you wrote (optional, recommended)</label>
-    <input id="verifyWords" placeholder="re-type the 12 words you wrote on the card" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <button id="verifyBtn" class="mini" style="width:auto;margin-top:8px">Check my writing</button>
-    <div id="verifyOut" class="out"></div>
+    <div class="note">Your writing is checked and matches this card. Send the gift to the address above, then seal the words. Keep the card sealed until it is given.</div>
     <button id="setupDone">Done, clear this screen</button>
+  </div>
+
+  <!-- Non-generating route: proves an already written card's address without ever replacing its words. -->
+  <div class="card hide" id="haveWordsCard">
+    <span class="back" id="haveBack">back</span>
+    <h2 style="font-size:18px;margin:2px 0 4px">Check a card you already set up</h2>
+    <p class="lead">This makes no new words and changes nothing. Type the 12 words already written on the card and it will show you that card's deposit address.</p>
+    <textarea id="haveWords" rows="3" placeholder="Type the 12 words with a space between each one" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+    <button id="haveCheckBtn">Show this card's deposit address</button>
+    <div id="haveOut" class="out"></div>
   </div>
 
   <!-- OPEN MODE: needs both halves; produces the spending key. -->

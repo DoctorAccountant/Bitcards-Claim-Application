@@ -1,6 +1,6 @@
 # Bitcard: open standard + claim app (v0.4)
 
-A physical, non-custodial bitcoin gift card. The card carries a key split into two halves of 12 words: one sealed under a scratch panel at manufacture, one written by the buyer at setup. Only someone holding both halves can spend. The issuer never holds a complete key and never touches funds. This repository exists so that **the bitcoin on any card is recoverable forever from the two word-halves, even if every Bitcard service disappears.** You recover with the open spec or the small included tool, and the recovered key then imports into any standard wallet.
+A physical, non-custodial bitcoin gift card. The card carries a key split into two halves of 12 words: one sealed under a scratch panel at manufacture, one written by the buyer at setup. Only someone holding both halves can spend. The issuer never holds a complete key and never touches funds. This repository exists so that **the bitcoin on any card is recoverable forever from the two word-halves, even if every Bitcard service disappears.** You recover with the open spec or the small included tool, which produces a standard private key (WIF); a standard wallet such as Sparrow or Electrum then **sweeps** it (Sweep, not Import).
 
 ## What is in this repository
 
@@ -32,7 +32,7 @@ This is an **additive two-part key** (the two halves add to one ordinary key), n
 sha256 of app/claim-app.html:
 01c102afd9830ac480c221183e6e98cfa032f698ac6f061ac5dddf749d0fb937
 sha256 of app/offline.html:
-38f12b8a8fd21005201f485b1dc866aa12623944ff0a99759970ac793f18dd03
+03646b2eeec8bb188496cded7b4bfde8a82f3bd6b65079221f2216f1e6ff9366
 ```
 
 PowerShell: `Get-FileHash app/claim-app.html` / Linux/macOS: `shasum -a 256 app/claim-app.html`

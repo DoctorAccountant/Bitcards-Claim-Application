@@ -7,10 +7,11 @@ const BUNDLE = process.argv[2];
 const IDS = ['netbadge','cardUri','cardStatus','modeSetup','modeOpen','setupCard','setupBack','genBtn','genOut',
   'setupResult','outWords','outSetupAddr','verifyWords','verifyBtn','verifyOut','setupDone','openCard','openBack',
   'p1','wc1','p2','wc2','revealBtn','keyOut','resultBox','outAddr','outWif','copyWif','clearBtn','liveGate','dlLink',
-  'buildhash','status','appbundle'];
+  'buildhash','status','appbundle','addrBox','haveWordsBtn','haveWordsCard','haveBack','haveWords','haveCheckBtn','haveOut'];
+const HIDDEN_AT_START = ['setupCard','openCard','setupResult','resultBox','liveGate','addrBox','haveWordsCard'];
 
 function makeEl(id){
-  const cls = new Set(id === 'setupCard' || id === 'openCard' || id === 'setupResult' || id === 'resultBox' || id === 'liveGate' ? ['hide'] : []);
+  const cls = new Set(HIDDEN_AT_START.includes(id) ? ['hide'] : []);
   return {
     id, value: '', textContent: '', disabled: false, className: '', style: { cssText: '' }, onclick: null,
     classList: {
@@ -25,7 +26,7 @@ function makeEl(id){
   };
 }
 
-function run({ live }){
+function run({ live, onConfirm }){
   const els = {};
   for (const id of IDS) els[id] = makeEl(id);
   els.appbundle.textContent = '';   // showBuildHash takes the "not bundled" branch
@@ -42,7 +43,7 @@ function run({ live }){
     location: { protocol: live ? 'https:' : 'file:', hash: '' }
   };
   globalThis.location = globalThis.window.location;
-  globalThis.confirm = () => (confirmAnswers.length ? confirmAnswers.shift() : true);
+  globalThis.confirm = (msg) => (onConfirm ? onConfirm(msg) : (confirmAnswers.length ? confirmAnswers.shift() : true));
   try{ Object.defineProperty(globalThis, 'navigator', { value: { clipboard: { writeText(){} } }, configurable: true }); }catch(e){}
 
   const src = fs.readFileSync(BUNDLE, 'utf8');
@@ -85,41 +86,94 @@ const CARD_201 = 'AQABAQLfRDXIEvQOzzQua7XN1bX0GV4ADGLZhtcuHx0nACm7lgAAAMk';
   ok('offline: setup panel opened', !els.setupCard.classList.contains('hide'));
 
   els.genBtn.onclick();
-  const addr = els.outSetupAddr.textContent.trim();
   const grid = els.outWords.textContent;
   const words = [...grid.matchAll(/\d+\.\s+([a-z]+)/g)].map(m => m[1]);
   ok('offline: 12 words generated', words.length === 12);
-  ok('offline: deposit address is mainnet bech32', /^bc1q[0-9a-z]{38}$/.test(addr));
   ok('offline: result panel shown', !els.setupResult.classList.contains('hide'));
   ok('offline: confirms work stayed on device', /this device/i.test(els.genOut.textContent));
+  // THE CORE SAFETY RULE: the deposit address must NOT appear until the words are verified.
+  // Funding an address whose words were miscopied is unrecoverable.
+  ok('offline: address hidden before verification', els.outSetupAddr.textContent === '');
+  ok('offline: address panel hidden before verification', els.addrBox.classList.contains('hide'));
 
-  // re-typing the correct words verifies
+  // a WRONG set must be rejected AND must not reveal the address
   const ordered = [];
   for (let i = 1; i <= 12; i++) { const m = grid.match(new RegExp('(?:^|\\s)' + i + '\\.\\s+([a-z]+)')); ordered.push(m[1]); }
-  els.verifyWords.value = ordered.join(' ');
-  els.verifyBtn.onclick();
-  ok('offline: correct re-type verifies', /match this card/i.test(els.verifyOut.textContent));
-  ok('offline: verify box cleared after success', els.verifyWords.value === '');
-
-  // a WRONG set must be rejected loudly
   els.verifyWords.value = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
   els.verifyBtn.onclick();
-  ok('offline: wrong words rejected', /do NOT give the same deposit address/i.test(els.verifyOut.textContent));
+  ok('offline: wrong words rejected', /do not match the 12 shown above/i.test(els.verifyOut.textContent));
+  ok('offline: address still hidden after a wrong re-type', els.outSetupAddr.textContent === '' && els.addrBox.classList.contains('hide'));
+
+  // the CORRECT re-type reveals it
+  els.verifyWords.value = ordered.join(' ');
+  els.verifyBtn.onclick();
+  ok('offline: correct re-type verifies', /your writing matches/i.test(els.verifyOut.textContent));
+  ok('offline: verify box cleared after success', els.verifyWords.value === '');
+  const addr = els.outSetupAddr.textContent.trim();
+  ok('offline: address revealed only now, mainnet bech32', /^bc1q[0-9a-z]{38}$/.test(addr));
+  ok('offline: address panel shown', !els.addrBox.classList.contains('hide'));
+
+  // once verified, regeneration is locked: new words would abandon a card that may already be funded
+  els.genBtn.onclick();
+  ok('offline: regeneration locked after verification', /disabled/i.test(els.genOut.textContent));
+  ok('offline: locked regeneration did not change the words', els.outWords.textContent === grid);
 
   // switching cards must wipe the previous card's words and address
   els.cardUri.value = CARD_201; els.cardUri.dispatch('input');
   ok('card switch: words cleared', els.outWords.textContent === '');
   ok('card switch: address cleared', els.outSetupAddr.textContent === '');
   ok('card switch: setup panel hidden', els.setupResult.classList.contains('hide'));
+  ok('card switch: address panel hidden', els.addrBox.classList.contains('hide'));
 
-  // Done button clears
+  // a second card generates its own distinct words, and its address is likewise gated behind verification
   els.modeSetup.onclick(); els.genBtn.onclick();
-  ok('second card generates its own address', /^bc1q/.test(els.outSetupAddr.textContent.trim()));
+  const grid2 = els.outWords.textContent;
+  ok('second card generated its own words', grid2 !== '' && grid2 !== grid);
+  ok('second card address also gated', els.outSetupAddr.textContent === '');
+  const ordered2 = [];
+  for (let i = 1; i <= 12; i++) { const m = grid2.match(new RegExp('(?:^|\\s)' + i + '\\.\\s+([a-z]+)')); ordered2.push(m[1]); }
+  els.verifyWords.value = ordered2.join(' ');
+  els.verifyBtn.onclick();
   const secondAddr = els.outSetupAddr.textContent.trim();
+  ok('second card address revealed after verify', /^bc1q/.test(secondAddr));
   ok('second card address differs from first', secondAddr !== addr);
   els.setupDone.onclick();
   ok('done: words cleared', els.outWords.textContent === '');
   ok('done: address cleared', els.outSetupAddr.textContent === '');
+}
+
+// ---- 2b. The non-generating "I already wrote words" route ----
+{
+  const { els } = run({ live: false });
+  els.cardUri.value = CARD_101; els.cardUri.dispatch('input');
+  els.haveWordsBtn.onclick();
+  ok('have-words: panel opened', !els.haveWordsCard.classList.contains('hide'));
+  els.haveWords.value = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
+  els.haveCheckBtn.onclick();
+  ok('have-words: derives an address', /bc1q[0-9a-z]{38}/.test(els.haveOut.textContent));
+  ok('have-words: warns if it is not the funded address', /NOT the address you funded/i.test(els.haveOut.textContent));
+  ok('have-words: generated NOTHING (no words produced)', els.outWords.textContent === '');
+}
+
+// ---- 2c. A reload (fresh session) must re-ask the blank-card question before generating ----
+{
+  let asked = 0;
+  const { els } = run({ live: false, onConfirm: (msg) => { if (/BLANK/i.test(msg)) asked++; return true; } });
+  els.cardUri.value = CARD_101; els.cardUri.dispatch('input');
+  els.modeSetup.onclick();
+  els.genBtn.onclick();
+  ok('fresh session: blank-card question was asked before generating', asked === 1);
+  ok('fresh session: words were generated after confirming', els.outWords.textContent !== '');
+}
+
+// ---- 2d. Declining the blank-card question must generate nothing ----
+{
+  const { els } = run({ live: false, onConfirm: () => false });
+  els.cardUri.value = CARD_101; els.cardUri.dispatch('input');
+  els.modeSetup.onclick();
+  els.genBtn.onclick();
+  ok('declining the blank-card question generates nothing', els.outWords.textContent === '');
+  ok('declining leaves the address hidden', els.outSetupAddr.textContent === '');
 }
 
 // ---- 3. OPEN mode still works (regression) ----

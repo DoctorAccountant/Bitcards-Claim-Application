@@ -4,7 +4,7 @@
 // Usage:  node mint-pilot-csv.mjs [count=100] [startSerial=101] [outDir]
 // Default outDir = C:\Users\<you>\bitcard-mint  (a sibling of OneDrive, NOT synced).
 //
-// This script prints ONLY counts, checksums, and a words-masked sample — the mnemonics never touch stdout.
+// This script prints ONLY counts, checksums, and a words-masked sample â€” the mnemonics never touch stdout.
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
 import { hmac } from '@noble/hashes/hmac';
 import { sha512 } from '@noble/hashes/sha512';
@@ -12,7 +12,7 @@ import { utf8ToBytes } from '@noble/hashes/utils';
 import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 import { hex, base64urlnopad as b64u } from '@scure/base';
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
@@ -53,6 +53,24 @@ for(const bad of ['onedrive','dropbox','google drive','googledrive','\\box\\','i
 }
 if(!existsSync(OUT_DIR)) mkdirSync(OUT_DIR, { recursive: true });
 
+// --- serial-range guard: a rerun must NEVER silently replace a previous batch. Existing QC manifests in the
+// output folder are the machine-readable record of what has already been allocated (the markdown ledger is the
+// human copy). Overlapping a printed range would orphan those cards: the file would describe cards that do not
+// exist, and two physical cards could share a serial. ---
+const wantLo = START, wantHi = START + COUNT - 1;
+for(const f of readdirSync(OUT_DIR)){
+  if(!/-QC-manifest\.json$/.test(f)) continue;
+  let prev; try{ prev = JSON.parse(readFileSync(path.join(OUT_DIR, f), 'utf8')); }catch(e){ continue; }
+  const used = (prev.cards||[]).map(c=>c.serial).filter(Number.isFinite);
+  if(!used.length) continue;
+  const lo = Math.min(...used), hi = Math.max(...used);
+  if(wantLo <= hi && wantHi >= lo){
+    console.error('REFUSING: serials '+wantLo+'-'+wantHi+' overlap an existing batch ('+lo+'-'+hi+') recorded in '+f+
+      '\nSerial ranges are never reused. Start after '+hi+', or move the previous batch out of this folder if it was never printed.');
+    process.exit(1);
+  }
+}
+
 // --- mint ---
 const cards = [];
 for(let i=0;i<COUNT;i++) cards.push(mint(START + i));
@@ -69,19 +87,23 @@ for(const c of cards){
   if(recSerial === c.serial) serialOK++;
   serials.add(c.serial); p1s.add(c.p1Hex);
 }
+// Every one of these is FATAL, not advisory: a printed batch that fails any of them is unrecoverable.
 if(serialOK !== COUNT){ console.error('REFUSING: ' + (COUNT-serialOK) + ' record(s) carry a different serial than requested'); process.exit(1); }
+if(structOK !== COUNT){ console.error('REFUSING: ' + (COUNT-structOK) + ' record(s) have words that do not reproduce their own QR key. Nothing was written.'); process.exit(1); }
+if(serials.size !== COUNT){ console.error('REFUSING: duplicate serials generated ('+serials.size+' unique of '+COUNT+')'); process.exit(1); }
+if(p1s.size !== COUNT){ console.error('REFUSING: duplicate card keys generated ('+p1s.size+' unique of '+COUNT+')'); process.exit(1); }
 
 // --- CSV: serial, word_1..word_12, qr_url ---
 const header = ['serial', ...Array.from({length:12},(_,i)=>'word_'+(i+1)), 'qr_url'].join(',');
 const rows = cards.map(c => [c.serial, ...c.words, c.qrUrl].join(','));
 const csv = header + '\r\n' + rows.join('\r\n') + '\r\n';
 const csvPath = path.join(OUT_DIR, 'bitcard-pilot-'+START+'-'+(START+COUNT-1)+'.csv');
-writeFileSync(csvPath, csv);
+writeFileSync(csvPath, csv, { flag: 'wx' });   // exclusive: never overwrite an existing batch file
 
 // --- public QC manifest (NO words) so you can verify printed cards later; safe to keep anywhere ---
 const manifest = { network: NET.label, appUrl: APP_URL, count: COUNT, cards: cards.map(c => ({ serial:c.serial, p1Hex:c.p1Hex, recordB64:c.recordB64, qrUrl:c.qrUrl })) };
 const manPath = path.join(OUT_DIR, 'bitcard-pilot-'+START+'-'+(START+COUNT-1)+'-QC-manifest.json');
-writeFileSync(manPath, JSON.stringify(manifest, null, 2));
+writeFileSync(manPath, JSON.stringify(manifest, null, 2), { flag: 'wx' });
 
 // --- handling note ---
 writeFileSync(path.join(OUT_DIR, 'HANDLING.txt'),

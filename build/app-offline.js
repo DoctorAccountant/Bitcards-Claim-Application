@@ -25,7 +25,10 @@ function clearResult(){ $('outAddr').textContent = ''; $('outWif').textContent =
 function clearSetup(){
   $('outWords').textContent = ''; $('outSetupAddr').textContent = ''; $('verifyWords').value = '';
   $('verifyOut').textContent = ''; $('genOut').textContent = '';
+  const hw = $('haveWords'); if(hw) hw.value = '';
+  const ho = $('haveOut'); if(ho) ho.textContent = '';
   $('setupResult').classList.add('hide');
+  $('addrBox').classList.add('hide');
 }
 // numbered two-column grid matching the card's printed lines (1-6 left, 7-12 right)
 function wordGrid(m){
@@ -56,7 +59,7 @@ function init(){
   // Both modes make or reveal secrets, so BOTH are gated: word entry and word generation stay off unless run from a saved file.
   const LIVE = (location.protocol !== 'file:');
   if(LIVE){
-    ['p1','p2','revealBtn','genBtn','verifyWords','verifyBtn'].forEach(id => { const el=$(id); if(el) el.disabled = true; });
+    ['p1','p2','revealBtn','genBtn','verifyWords','verifyBtn','haveWords','haveCheckBtn','haveWordsBtn'].forEach(id => { const el=$(id); if(el) el.disabled = true; });
     const rb = $('revealBtn'); if(rb) rb.textContent = 'Save this page, then open it offline to use it';
     const gb = $('genBtn'); if(gb) gb.textContent = 'Save this page, then open it offline to use it';
     const g = $('liveGate'); if(g) g.classList.remove('hide');
@@ -66,7 +69,9 @@ function init(){
   const showMode = which => {
     $('setupCard').classList.toggle('hide', which !== 'setup');
     $('openCard').classList.toggle('hide', which !== 'open');
-    if(which !== 'setup') clearSetup();
+    $('haveWordsCard').classList.toggle('hide', which !== 'have');
+    // leaving setup entirely (not just stepping into the check-existing route) drops any generated words
+    if(which !== 'setup' && which !== 'have'){ resetSetupState(); clearSetup(); }
     if(which !== 'open') clearResult();
     $('modeSetup').classList.toggle('hide', which !== null);
     $('modeOpen').classList.toggle('hide', which !== null);
@@ -93,36 +98,82 @@ function init(){
     catch(e){ $('cardStatus').textContent = 'That code is not complete yet. Paste the whole card code, or the whole link from scanning the QR.'; }
   }
   // a different card must never leave the previous card's words, address, or key on screen
-  $('cardUri').addEventListener('input', ()=>{ refreshCardStatus(); clearResult(); clearSetup(); showMode(null); });
+  // a different card must wipe the generated words too, not just the display: verifying against a stale
+  // card record would show a deposit address belonging to the previous card
+  $('cardUri').addEventListener('input', ()=>{ resetSetupState(); refreshCardStatus(); clearResult(); clearSetup(); showMode(null); });
   refreshCardStatus();
 
   // ---------- SETUP MODE (no website, no sealed half needed) ----------
-  let setupState = null;   // { p1hex, mnemonic, addr }
+  // Safety model, matching the hosted give flow:
+  //   1. Generating words is gated on the operator confirming the card's write lines are physically BLANK.
+  //      This gate cannot live in memory alone: a reload wipes state, so it is asked on EVERY first generation.
+  //   2. The deposit address is NOT shown until the buyer re-types the words correctly. Funding an address
+  //      whose words were miscopied is unrecoverable, so verification is mandatory, not advisory.
+  //   3. Once verified, generation is locked for the session: new words would abandon a card that may be funded.
+  let setupState = null;         // { p1hex, mnemonic, addr }
+  let setupVerified = false;     // set when the re-typed words reproduce the address; locks regeneration
+  const resetSetupState = ()=>{ setupState = null; setupVerified = false; };
+
   $('genBtn').onclick = ()=>{
     if(LIVE){ log('genOut','This page is running from a website, so it will not make card words here. Save the file and open it offline.','bad'); return; }   // fail closed in code, not just via the disabled attribute
     const card = requireCard(); if(!card) return;
+    if(setupVerified){
+      log('genOut','These words are checked and belong to this card now. Making new ones is disabled so bitcoin cannot be sent to words that were thrown away. To set up a different, unused card, change the card code above.','bad');
+      return;
+    }
+    // physical-state gate: asked on the first generation of EVERY session, because a reload forgets everything
+    if(!setupState && !confirm('Quick check: are the numbered word lines on this card completely BLANK?\n\nIf words are already written there, press Cancel. That card was set up before, and making new words for it can lose bitcoin. Use "I already wrote words on this card" instead.')) return;
     if(setupState && !confirm('Make a NEW set of 12 words?\n\nOnly do this if you have NOT written the current words on the card and have NOT sent any bitcoin. The old words and their deposit address cannot be recovered.')) return;
     clearSetup();
     try{
       const m = bip39.generateMnemonic(wordlist, 128);
       const addr = setupAddress(card.P1hex, halfScalar(m));   // card public half + fresh half, all on this device
       setupState = { p1hex: card.P1hex, mnemonic: m, addr };
+      setupVerified = false;
       $('outWords').textContent = wordGrid(m);
-      $('outSetupAddr').textContent = addr;
       $('setupResult').classList.remove('hide');
-      $('genOut').textContent = 'Card No. ' + card.serial + ': words made and deposit address worked out on this device. Nothing was sent anywhere.';
+      $('genOut').textContent = 'Card No. ' + card.serial + ': 12 words made on this device. Nothing was sent anywhere. Write them on the card, then re-type them below to see the deposit address.';
     }catch(e){ log('genOut','Could not set up this card: '+e.message,'bad'); }
   };
+
   $('verifyBtn').onclick = ()=>{
     if(LIVE){ log('verifyOut','This page is running from a website. Save the file and open it offline.','bad'); return; }
     if(!setupState){ log('verifyOut','Make the 12 words first.','bad'); return; }
+    const card = requireCard(); if(!card) return;
+    if(card.P1hex !== setupState.p1hex){   // the card box changed after generating: never verify against a stale card
+      log('verifyOut','The card code changed after these words were made. Start again with the card you are holding.','bad');
+      resetSetupState(); clearSetup(); return;
+    }
     const r = checkWords($('verifyWords').value, 'box'); if(r.err){ log('verifyOut', r.err, 'bad'); return; }
     let ok = false;
     try{ ok = setupAddress(setupState.p1hex, halfScalar(r.m)) === setupState.addr; }catch(e){}
-    if(ok){ log('verifyOut','✓ The words you typed match this card and give the same deposit address. It is safe to send the bitcoin.','ok'); $('verifyWords').value = ''; }
-    else log('verifyOut','✗ Those words do NOT give the same deposit address. Do not send any bitcoin yet. Compare what you wrote against the list above, word by word and in order.','bad');
+    if(ok){
+      setupVerified = true;
+      $('verifyWords').value = '';
+      log('verifyOut','✓ Your writing matches. The deposit address is below.','ok');
+      $('outSetupAddr').textContent = setupState.addr;
+      $('addrBox').classList.remove('hide');
+    }else{
+      $('addrBox').classList.add('hide'); $('outSetupAddr').textContent = '';
+      log('verifyOut','✗ Those words do not match the 12 shown above, so the deposit address stays hidden on purpose. Nothing is lost and no bitcoin is at risk yet. Compare what you wrote against the list above, word by word and in order, then try again.','bad');
+    }
   };
-  $('setupDone').onclick = ()=>{ setupState = null; clearSetup(); };
+
+  // Non-generating route for a card whose words are already written: derives the address, never replaces anything.
+  $('haveWordsBtn').onclick = ()=>{ if(requireCard()) showMode('have'); };
+  $('haveBack').onclick = ()=> showMode('setup');
+  $('haveCheckBtn').onclick = ()=>{
+    if(LIVE){ log('haveOut','This page is running from a website. Save the file and open it offline.','bad'); return; }
+    const card = requireCard(); if(!card) return;
+    const r = checkWords($('haveWords').value, 'box'); if(r.err){ log('haveOut', r.err, 'bad'); return; }
+    try{
+      const addr = setupAddress(card.P1hex, halfScalar(r.m));
+      $('haveOut').textContent = 'Card No. ' + card.serial + ' with those words has this deposit address:\n\n' + addr +
+        '\n\nIf that is NOT the address you funded, then one of the words you typed is different from what is written on the card. Nothing has been changed by checking.';
+    }catch(e){ log('haveOut','Could not work that out: '+e.message,'bad'); }
+  };
+
+  $('setupDone').onclick = ()=>{ resetSetupState(); clearSetup(); };
 
   function wireCounter(inp,out){ const el=$(inp),o=$(out); el.addEventListener('input',()=>{ const t=el.value.trim(); const n=t?t.split(/\s+/).length:0; o.textContent=n?(n+' of 12 words'):''; $('keyOut').textContent=''; clearResult(); }); }
   wireCounter('p2','wc2'); wireCounter('p1','wc1');
@@ -162,10 +213,12 @@ function init(){
     catch(e){ log('keyOut','Copy is not available here. Select the key text by hand.','bad'); }
   };
   $('clearBtn').onclick = ()=>{ clearResult(); $('keyOut').textContent = ''; };
-  window.addEventListener('pagehide', ()=>{ try{ setupState = null; clearResult(); clearSetup(); $('p1').value=''; $('p2').value=''; }catch(e){} });
+  window.addEventListener('pagehide', ()=>{ try{ resetSetupState(); clearResult(); clearSetup(); $('p1').value=''; $('p2').value=''; }catch(e){} });
 
   showMode(null);
   showBuildHash();
-  const st = $('status'); if(st) st.textContent = LIVE ? 'download this page and open it offline to unlock it' : 'ready (running offline)';
+  // "saved-file mode" is the honest label: file:// proves this is a saved copy, NOT that networking is off.
+  // The real protection is that this bundle contains no network code at all.
+  const st = $('status'); if(st) st.textContent = LIVE ? 'download this page and open the saved file to unlock it' : 'ready (saved-file mode, no network code in this page)';
 }
 init();
