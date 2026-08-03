@@ -94,6 +94,24 @@ export function parseCard(uri){
 }
 export const parseAndVerifyCard = parseCard; // back-compat alias for existing callers
 
+// Accept whatever a person can plausibly paste. Real inputs seen in the wild include the whole link from a
+// camera app, a link forwarded in a message with words around it, a link whose "#" arrived percent-encoded,
+// the bare record, a "bitcard:" code, and any of those wrapped in spaces, newlines, or trailing punctuation.
+// Strategy: take everything after the LAST fragment marker, then keep only the leading run of base64url
+// characters. That discards trailing prose, punctuation and whitespace without ever rewriting what the
+// person typed (the input box is untouched; this only normalizes at parse time).
+export function normCardInput(v){
+  v = String(v == null ? '' : v).trim();
+  const hh = v.lastIndexOf('#');
+  const pp = v.toLowerCase().lastIndexOf('%23');
+  if(hh >= 0 || pp >= 0){
+    v = (hh > pp) ? v.slice(hh + 1) : v.slice(pp + 3);
+  }
+  v = v.trim().replace(/^bitcard:/i, '').trim();
+  const m = v.match(/^[A-Za-z0-9_-]+/);
+  return m ? 'bitcard:' + m[0] : '';
+}
+
 // ---- key scheme (spec §3) ----
 export function halfScalar(mnemonic){
   if(!bip39.validateMnemonic(mnemonic.trim().toLowerCase(), wordlist)) throw new Error('bad BIP39 mnemonic/checksum');

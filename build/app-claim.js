@@ -3,7 +3,7 @@
 // this file is the UI layer that calls it. All the sweep-security checks (§7) are preserved.
 // Copy rules: no em dashes anywhere; JS strings avoid apostrophes (use full words); HTML may use contractions.
 import { $, log, bip39, wordlist, btc, BTCNET, NET, hexlib, b64u,
-  parseAndVerifyCard, buildRecord, halfScalar, pubOfScalar, setupAddress, combine, bigToBytes32, showBuildHash,
+  parseAndVerifyCard, normCardInput, buildRecord, halfScalar, pubOfScalar, setupAddress, combine, bigToBytes32, showBuildHash,
   estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed } from './core.js';
 import { getUtxos, feeRate, broadcastTx } from './net.js';   // network layer (online app only)
 import { ENDPOINTS } from './endpoints.js';                  // node URLs (online app only); the offline tool never imports this
@@ -48,15 +48,6 @@ let lastRate = null;   // sat/vB used for the last sweep, so "speed up" can bid 
 let lastUtxos = null;  // the exact inputs the reviewed sweep spends; an RBF bump must re-spend THESE (mempool marks them spent)
 let busy = false;      // single in-flight guard: blocks double-clicks and concurrent sign/broadcast
 
-// Accept whatever a person is likely to paste: the bare code, a "bitcard:" code, or the WHOLE link
-// their camera app showed (".../app.html#AQAB..."). We normalize at parse time, never rewrite their typing.
-function normCardInput(v){
-  v = (v||'').trim();
-  const i = v.lastIndexOf('#');
-  if(i >= 0) v = v.slice(i+1).trim();
-  if(v && !v.startsWith('bitcard:')) v = 'bitcard:' + v;
-  return v;
-}
 function loadCard(){ return parseAndVerifyCard(normCardInput($('cardUri').value)); }
 function sats(n){ return n.toLocaleString('en-US'); }
 function btcStr(n){ return (n/1e8).toFixed(8); }
@@ -76,13 +67,13 @@ async function checkClaimBalance(){
   let utxos;
   try{ utxos = (await getUtxos(c.address)).utxos; }
   catch(e){
-    $('showOut').textContent = 'We could not reach the bitcoin network to check the balance. Nothing was sent and nothing is wrong with your words. This page still has your card open: check your internet connection, then tap Try again, you do not need to retype anything.';
+    $('showOut').textContent = 'We could not reach the bitcoin network to check the balance. Nothing was sent and nothing is wrong with your words. This page still has your card open: check your internet connection, then tap Try again, you do not need to retype anything. [NET-01]';
     $('retryBal').classList.remove('hide');
     return;
   }
   const total = utxos.reduce((s,u)=>s+u.value,0);
   if(total <= 0){
-    $('showOut').textContent = 'No bitcoin is showing on this card right now. Nothing was moved by this check. First, compare both sets of words with the card one word at a time, then tap Try again. If the words are correct, the payment may have been sent very recently, may not have been sent yet, or the card may have been claimed before.';
+    $('showOut').textContent = 'No bitcoin is showing on this card right now. Nothing was moved by this check. First, compare both sets of words with the card one word at a time, then tap Try again. If the words are correct, the payment may have been sent very recently, may not have been sent yet, or the card may have been claimed before. [CARD-04]';
     $('retryBal').classList.remove('hide');
     $('sendSection').classList.add('hide');
     return;
@@ -97,7 +88,9 @@ async function checkClaimBalance(){
 }
 
 // ---- card-binding + reset (prevents card A state being used to fund/spend card B) ----
-function cardKey(){ try{ return parseAndVerifyCard($('cardUri').value).P1hex; }catch(e){ return null; } }
+// must normalize the same way loadCard does: otherwise a pasted full link parses as null here and
+// cardChanged() reports a card swap that never happened, wiping the flow state mid-claim
+function cardKey(){ try{ return parseAndVerifyCard(normCardInput($('cardUri').value)).P1hex; }catch(e){ return null; } }
 function resetFlowState(){
   setup = {}; setupLocked = false; claimState = null;
   lastRawTx = null; lastTxId = null; lastReviewedDest = null; stateCard = null; lastRate = null; lastUtxos = null;
@@ -151,8 +144,8 @@ async function buildSweep(c, dest, minRate, utxosOverride){
 const SWEEP_ERR = {
   empty:       'This card has no bitcoin on it to send. Nothing was sent.',
   dust:        'After the network fee, what would be left is below the tiny minimum the bitcoin network accepts. Nothing was sent, the bitcoin is still on the card. Try again when fees are lower.',
-  feecap:      'The fee for this payment is above our safety limit right now. Nothing was sent, the bitcoin is still on the card. Try again in a few hours, or use the offline tool at bitcards.xyz/offline.html and sweep with your own wallet, where you choose the fee yourself.',
-  feehalf:     'Right now the network fee would eat more than half of what is on this card, so we stopped. Nothing was sent, the bitcoin is still on the card. Fees change hour to hour: try again later, or use the offline tool at bitcards.xyz/offline.html and sweep with your own wallet, where you choose the fee yourself.',
+  feecap:      'The fee for this payment is above our safety limit right now. Nothing was sent, the bitcoin is still on the card. Try again in a few hours [FEE-01], or use the offline tool at bitcards.xyz/offline.html and sweep with your own wallet, where you choose the fee yourself.',
+  feehalf:     'Right now the network fee would eat more than half of what is on this card, so we stopped. Nothing was sent, the bitcoin is still on the card. Fees change hour to hour [FEE-02]: try again later, or use the offline tool at bitcards.xyz/offline.html and sweep with your own wallet, where you choose the fee yourself.',
   destmismatch:'Safety check failed, the address did not match. Nothing was sent. Re-check your wallet address.'
 };
 
@@ -373,7 +366,7 @@ function init(){
     if(r2.err){ log('showOut', r2.err, 'bad'); return; }
     let card;
     try{ card = loadCard(); }
-    catch(e){ log('showOut','This card code is not valid. Re-scan the QR on the back of the card, then try again.','bad'); return; }   // audit: fail closed, never skip the pairing check
+    catch(e){ log('showOut','This card code is not valid. Re-scan the QR on the back of the card, then try again. [CARD-01]','bad'); return; }   // audit: fail closed, never skip the pairing check
     // the QR commits the hidden half: catch a mispaired or misread panel deterministically
     if(hexlib.encode(pubOfScalar(halfScalar(r1.m))) !== card.P1hex){
       // before blaming the card, check the commonest human error: the two sets typed into the wrong boxes.
@@ -381,9 +374,9 @@ function init(){
       let swapped = false;
       try{ swapped = hexlib.encode(pubOfScalar(halfScalar(r2.m))) === card.P1hex; }catch(e){}
       if(swapped){
-        log('showOut','It looks like the two sets of words are in the wrong boxes. The printed words from under the scratch panel go in the FIRST box, and the handwritten words go in the SECOND box. Swap them and try again.','bad');
+        log('showOut','It looks like the two sets of words are in the wrong boxes. The printed words from under the scratch panel go in the FIRST box, and the handwritten words go in the SECOND box. Swap them and try again. [CARD-03]','bad');
       }else{
-        log('showOut','The words from under the scratch panel do not match this card. Re-check the scratched-off words one at a time, and make sure the card code above belongs to the card you are holding.','bad');
+        log('showOut','The words from under the scratch panel do not match this card. Re-check the scratched-off words one at a time, and make sure the card code above belongs to the card you are holding. [CARD-02]','bad');
       }
       return;
     }
