@@ -16,8 +16,15 @@ build/_probe.mjs
 Thumbs.db
 .DS_Store
 
+# Dependencies are pinned by package-lock.json (exact versions + integrity hashes), which IS committed.
+# The tree itself is not: it is large, platform-specific (a vendored esbuild binary is Windows-only, so
+# it would not deliver cross-platform reproducibility anyway), and it churns on every `npm ci`, which
+# makes real changes hard to see. The permanence promise does not depend on rebuilding this app: it rests
+# on the words, the spec, and the standard-library-only Python recovery tool.
+build/node_modules/
+
 # NOTE, deliberately NOT ignored:
 #   app/*.html          the released artifacts themselves; their hashes are published in the README
 #   build/*.bundle.js   and build/claim-app.html, build/offline.html: the exact build outputs, kept so
 #                       anyone can diff a rebuild against what we shipped without trusting our word
-#   build/node_modules/ currently tracked; see the note in README about vendored dependencies
+#   build/package-lock.json  the exact dependency tree, which is what makes builds reproducible

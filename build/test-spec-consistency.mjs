@@ -15,10 +15,13 @@ import { RECORD_V1_LEN, RECORD_V2_LEN, CHECKSUM_LEN } from './core.js';
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { c ? pass++ : (fail++, console.log('FAIL: ' + n + (d !== undefined ? '\n      ' + d : ''))); };
 
-const SPECS = ['../release/spec/bitcard-claim-spec.md', '../bitcard-claim-spec.md']
+// Both layouts must work: the dev tree (build/ beside release/) and the RELEASED repo, where build/ and
+// spec/ are siblings. A path list that only resolves on the author's machine is the same portability trap
+// as a test that silently skips: it turns green everywhere it cannot actually check anything.
+const SPECS = ['../spec/bitcard-claim-spec.md', '../release/spec/bitcard-claim-spec.md', '../bitcard-claim-spec.md']
   .map(p => fileURLToPath(new URL(p, import.meta.url)))
   .filter(existsSync);
-ok('at least one copy of the spec is present', SPECS.length > 0);
+ok('at least one copy of the spec is present (checked dev and released layouts)', SPECS.length > 0);
 
 for (const p of SPECS) {
   const name = p.split(/[\\/]/).slice(-2).join('/');
@@ -50,7 +53,7 @@ for (const p of SPECS) {
 
 // the frozen v2 vector in the published vectors file must match what the code builds
 {
-  const vp = ['../bitcard-test-vectors.json', '../release/spec/bitcard-test-vectors.json']
+  const vp = ['../spec/bitcard-test-vectors.json', '../bitcard-test-vectors.json', '../release/spec/bitcard-test-vectors.json']
     .map(p => fileURLToPath(new URL(p, import.meta.url))).filter(existsSync);
   ok('published test vectors are present', vp.length > 0);
   for (const p of vp) {
