@@ -1,0 +1,23 @@
+# Byproducts of running the tools. External review 2026-08-03 hit these: a reviewer who rebuilds and
+# re-runs the suite should end with a CLEAN tree, otherwise real changes hide among the noise and the
+# release trail becomes hard to read.
+__pycache__/
+*.pyc
+*.pyo
+
+# scratch files the build and test scripts write next to themselves
+build/_*.mjs
+build/_*.js
+build/_*.html
+build/_drift.*
+build/_probe.mjs
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+# NOTE, deliberately NOT ignored:
+#   app/*.html          the released artifacts themselves; their hashes are published in the README
+#   build/*.bundle.js   and build/claim-app.html, build/offline.html: the exact build outputs, kept so
+#                       anyone can diff a rebuild against what we shipped without trusting our word
+#   build/node_modules/ currently tracked; see the note in README about vendored dependencies

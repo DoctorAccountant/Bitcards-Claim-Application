@@ -17,7 +17,7 @@ $stamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
 $heartbeat = Join-Path $here "HEARTBEAT.txt"
 function Write-Heartbeat($verdict, $detail) {
   $age = "checked $stamp"
-  $txt = "Bitcard integrity check`r`n$age`r`nverdict: $verdict`r`nwatching: $($cfg.releaseCommit)`r`n$detail`r`n`r`n" +
+  $txt = "Bitcard integrity check`r`n$age`r`nverdict: $verdict`r`nwatching: $($cfg.builtFromCommit)`r`n$detail`r`n`r`n" +
          "If the timestamp above is more than a few hours old, the monitor is NOT running and the live site is unwatched."
   try { Set-Content -Path $heartbeat -Value $txt -Encoding UTF8 } catch {}
 }
@@ -57,7 +57,7 @@ if ($failures.Count -gt 0) {
     Write-Heartbeat "unreachable (transient, not an alarm)" ($netErrors -join "`r`n")
     exit 1
 } else {
-    Add-Content -Path $log -Value "$stamp  OK  all $($cfg.urls.Count) artifacts match ($($cfg.releaseCommit))"
+    Add-Content -Path $log -Value "$stamp  OK  all $($cfg.urls.Count) artifacts match ($($cfg.builtFromCommit))"
     Write-Heartbeat "OK" "all $($cfg.urls.Count) live artifacts match the published hashes"
     exit 0
 }

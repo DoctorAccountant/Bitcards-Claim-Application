@@ -58,7 +58,16 @@ else { try { commit = execSync('git rev-parse --short HEAD', { cwd: new URL('.',
 
 cfg.artifacts = want;
 cfg.updated = new Date().toISOString().slice(0, 10);
-cfg.releaseCommit = commit;
+// A file cannot contain the hash of the commit that contains it, so this necessarily names the commit
+// whose TREE produced these bytes, and the stamp commit that carries this file follows immediately after.
+// Left unexplained that reads as a stale label (external review flagged exactly that), so say it here.
+cfg.comment = 'Expected SHA-256 of the LIVE deployed artifacts. Written by build/release-finish.mjs, which '
+  + 'verifies each URL against the locally built file and refuses to write on any mismatch. Never edit by hand.';
+cfg.builtFromCommit = commit;
+cfg.commitNote = 'builtFromCommit is the commit whose tree produced these artifacts. The commit that CONTAINS '
+  + 'this file is the one immediately after it (a file cannot embed its own commit hash). Both describe the '
+  + 'same released bytes; verify with: git show ' + commit + ':build/core.js';
+delete cfg.releaseCommit;
 writeFileSync(CFG, JSON.stringify(cfg, null, 2) + '\n');
 
 // The README is the instruction we give people for checking that the app they loaded is the app we

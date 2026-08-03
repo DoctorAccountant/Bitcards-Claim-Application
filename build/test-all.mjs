@@ -18,6 +18,7 @@ const SUITES = [
   ['test-batch-verifier.mjs', [], 'the printed-batch verifier is no more permissive than the app'],
   ['test-known-batch.mjs',    [], 'corrupted card codes are caught before anyone funds them'],
   ['test-record-v2.mjs',      [], 'v2 checksummed records + the v1 permanence pin'],
+  ['test-spec-consistency.mjs', [], 'the published spec does not contradict the shipped parser'],
 ];
 
 let failed = [];
