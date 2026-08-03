@@ -12,17 +12,32 @@ import { readFileSync } from 'node:fs';
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { c ? pass++ : (fail++, console.log('FAIL: ' + n + (d !== undefined ? '\n      ' + d : ''))); };
 
-ok('the batch table covers a contiguous range', KNOWN_BATCH.endSerial > KNOWN_BATCH.startSerial);
-ok('the table is the size the range implies',
-   b64uLen() === (KNOWN_BATCH.endSerial - KNOWN_BATCH.startSerial + 1) * KNOWN_BATCH.trunc,
-   'blob is a different length than the serial range');
-function b64uLen(){ try{ return Buffer.from(KNOWN_BATCH.hashes, 'base64').length; }catch(e){ return -1; } }
+ok('the table has at least one segment', Array.isArray(KNOWN_BATCH.segments) && KNOWN_BATCH.segments.length > 0);
+for (const s of (KNOWN_BATCH.segments || [])) {
+  const len = (() => { try { return Buffer.from(s.hashes, 'base64').length; } catch (e) { return -1; } })();
+  ok('segment ' + s.start + '-' + s.end + ' blob matches its serial count',
+     len === (s.end - s.start + 1) * KNOWN_BATCH.trunc, 'blob ' + len + ' bytes');
+}
+// segments must be sorted and non-overlapping, or a serial could resolve to the wrong card's hash
+{
+  const segs = (KNOWN_BATCH.segments || []).slice();
+  let sane = true;
+  for (let i = 1; i < segs.length; i++) if (segs[i].start <= segs[i-1].end) sane = false;
+  ok('segments are ordered and do not overlap', sane);
+}
 
 // ---- against the real minted batch, if this machine has it ----
-const MAN = process.env.BITCARD_MANIFEST || 'C:/Users/Cameron/bitcard-mint/bitcard-print-300-QC-manifest.json';
-let man = null;
-try { man = JSON.parse(readFileSync(MAN, 'utf8')); } catch (e) {}
+// Check EVERY manifest present, not just the first: a second print run is exactly when a table that only
+// covered one batch would start silently rejecting real cards.
+const MANS = (process.env.BITCARD_MANIFEST ? [process.env.BITCARD_MANIFEST] : [
+  'C:/Users/Cameron/bitcard-mint/bitcard-print-300-QC-manifest.json',
+  'C:/Users/Cameron/bitcard-mint/bitcard-print-300-b2-QC-manifest.json',
+]);
+const loaded = [];
+for (const p of MANS) { try { loaded.push(JSON.parse(readFileSync(p, 'utf8'))); } catch (e) {} }
+const man = loaded.length ? { cards: loaded.flatMap(m => m.cards) } : null;
 if (man) {
+  console.log('  checking ' + loaded.length + ' manifest(s), ' + man.cards.length + ' cards');
   let good = 0, bad = 0;
   for (const c of man.cards) (knownCardStatus(c.p1Hex, c.serial) === 'ok' ? good++ : bad++);
   ok('every minted card is recognized by the embedded table', bad === 0, bad + ' of ' + man.cards.length + ' not recognized');
@@ -59,14 +74,22 @@ if (man) {
 {
   const d = halfScalar('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
   const P1 = pubOfScalar(d);
-  const outside = KNOWN_BATCH.endSerial + 5000;
+  const segs = KNOWN_BATCH.segments;
+  const outside = Math.max(...segs.map(s => s.end)) + 5000;
   const uri = 'bitcard:' + b64u.encode(buildRecord(P1, outside));
   const p = parseAndVerifyCard(uri);
   ok('a card outside our minted range is UNKNOWN, not rejected', knownCardStatus(p.P1hex, p.serial) === 'unknown');
+  // The GAP between two allocated batches is the case a single-range table got wrong: a serial there must
+  // be unknown, never silently indexed into a neighbouring batch's hashes.
+  if (segs.length > 1) {
+    const gap = segs[0].end + 1;
+    ok('a serial in the gap between batches is UNKNOWN (' + gap + ')', knownCardStatus(p.P1hex, gap) === 'unknown');
+    ok('the gap is real (batches are not adjacent)', segs[1].start > segs[0].end + 1);
+  }
   ok('serial 0 is treated as unknown, not an index underflow', knownCardStatus(p.P1hex, 0) === 'unknown');
   ok('a negative serial cannot index the table', knownCardStatus(p.P1hex, -1) === 'unknown');
   ok('a non-integer serial cannot index the table', knownCardStatus(p.P1hex, 1.5) === 'unknown');
-  ok('garbage key material is a mismatch, never a crash', knownCardStatus('zz', KNOWN_BATCH.startSerial) === 'mismatch');
+  ok('garbage key material is a mismatch, never a crash', knownCardStatus('zz', segs[0].start) === 'mismatch');
 }
 
 console.log('\n' + (fail === 0 ? 'KNOWN BATCH OK (' + pass + ' passed)' : 'KNOWN BATCH FAILED (' + fail + ' failures)'));

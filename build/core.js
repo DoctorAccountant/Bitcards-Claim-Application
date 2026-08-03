@@ -128,10 +128,14 @@ export const parseAndVerifyCard = parseCard; // back-compat alias for existing c
 // working, or this stops being an open standard and starts being a permission slip from us.
 export function knownCardStatus(P1hex, serial){
   const B = KNOWN_BATCH;
-  if(!B || !Number.isInteger(serial) || serial < B.startSerial || serial > B.endSerial) return 'unknown';
+  if(!B || !Array.isArray(B.segments) || !Number.isInteger(serial)) return 'unknown';
+  // serial ranges are allocated per print job and leave gaps, so the table is a list of contiguous
+  // segments rather than one run; a serial in none of them is a card we did not make, not an error
+  const seg = B.segments.find(s => serial >= s.start && serial <= s.end);
+  if(!seg) return 'unknown';
   let blob;
-  try{ blob = b64std.decode(B.hashes); }catch(e){ return 'unknown'; }
-  const off = (serial - B.startSerial) * B.trunc;
+  try{ blob = b64std.decode(seg.hashes); }catch(e){ return 'unknown'; }
+  const off = (serial - seg.start) * B.trunc;
   if(off + B.trunc > blob.length) return 'unknown';
   let want;
   try{ want = sha256(hexlib.decode(P1hex)).slice(0, B.trunc); }catch(e){ return 'mismatch'; }
