@@ -1,10 +1,10 @@
 {
   "comment": "Expected SHA-256 of the LIVE deployed artifacts. SOP-4: update this file as part of every release, immediately after verifying the live hashes.",
   "updated": "2026-08-03",
-  "releaseCommit": "92b95ac",
+  "releaseCommit": "e7c62b5",
   "artifacts": {
-    "app.html": "7f75c44f98ba3681a72db6508bd9da8b8fbee0306cc6329fa1093175653d6277",
-    "offline.html": "02cf02453c5edb914801c3eea3fc9b99d3f5e630e764aba7b0c734caf6f8fef4"
+    "app.html": "ed5eb841292e34a6fe5448fc73e71b93e40e295dad66ade97986792cd757e66f",
+    "offline.html": "9884d31dac3cb6bf7e257e2ebb126d435e842414845008df7a95c9c78f25901e"
   },
   "urls": [
     "https://bitcards.xyz/app.html",

@@ -30,9 +30,9 @@ This is an **additive two-part key** (the two halves add to one ordinary key), n
 
 ```
 sha256 of app/claim-app.html:
-7f75c44f98ba3681a72db6508bd9da8b8fbee0306cc6329fa1093175653d6277
+ed5eb841292e34a6fe5448fc73e71b93e40e295dad66ade97986792cd757e66f
 sha256 of app/offline.html:
-02cf02453c5edb914801c3eea3fc9b99d3f5e630e764aba7b0c734caf6f8fef4
+9884d31dac3cb6bf7e257e2ebb126d435e842414845008df7a95c9c78f25901e
 ```
 
 PowerShell: `Get-FileHash app/claim-app.html` / Linux/macOS: `shasum -a 256 app/claim-app.html`
