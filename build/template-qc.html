@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
-<title>Bitcard QC / ceremony tool — KEYLESS / OFFLINE (v0.4)</title>
+<title>Bitcard QC / ceremony tool, KEYLESS / OFFLINE (v0.4)</title>
 <style>
   body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:760px;margin:0 auto;padding:18px;color:#1a1a1a;background:#fbfaf6}
   h1{font-size:20px;margin:0 0 2px}
@@ -24,18 +24,18 @@
 </head>
 <body>
   <h1>Bitcard QC / ceremony tool</h1>
-  <p class="sub">Verifies each sealed card reproduces the key in its QR, before it ships (spec §2a). Spec v0.4.</p>
-  <div class="note">✓ This tool is KEYLESS: it contains no maker private key and cannot create or sign cards. It can run on a separate station from the maker tool. Run it offline.</div>
+  <p class="sub">Verifies each sealed card reproduces the key in its QR, before it ships (spec &sect;2a). Spec v0.4.</p>
+  <div class="note">&#x2713; This tool is KEYLESS: it contains no maker private key and cannot create or sign cards. It can run on a separate station from the maker tool. Run it offline.</div>
 
   <div class="panel">
-    <h2>0 · Status / self-test</h2>
-    <div id="status">starting…</div>
+    <h2>0 &middot; Status / self-test</h2>
+    <div id="status">starting...</div>
     <div id="buildhash"></div>
     <div id="selftest" class="mono"></div>
   </div>
 
   <div class="panel">
-    <h2>1 · Operator / witness (for this batch)</h2>
+    <h2>1 &middot; Operator / witness (for this batch)</h2>
     <label>Operator ID</label>
     <input id="operator" placeholder="e.g. CT">
     <label>Witness ID</label>
@@ -43,12 +43,12 @@
   </div>
 
   <div class="panel">
-    <h2>2 · Verify a sealed card (§2a)</h2>
+    <h2>2 &middot; Verify a sealed card (&sect;2a)</h2>
     <p class="sub">Read Part 1 back FROM THE PHYSICAL CARD and scan its QR. The tool re-derives the key from the words and confirms it matches the key in the QR. Only after a MATCH may you destroy the maker copy.</p>
-    <label>Sealed Part 1 — re-type the 12 words read off the physical card</label>
-    <input id="sealWords" placeholder="word1 … word12">
-    <label>Card QR content (bitcard:… — scanned from the physical card)</label>
-    <input id="sealUri" placeholder="bitcard:…">
+    <label>Sealed Part 1, re-type the 12 words read off the physical card</label>
+    <input id="sealWords" placeholder="word1 ... word12">
+    <label>Card QR content (bitcard:..., scanned from the physical card)</label>
+    <input id="sealUri" placeholder="bitcard:...">
     <button id="verifyCardBtn">Verify sealed card</button>
     <div id="verifyCardOut" class="mono"></div>
     <button id="destroyBtn" class="sec">Confirm destruction of maker copy (after a MATCH)</button>
@@ -56,7 +56,7 @@
   </div>
 
   <div class="panel">
-    <h2>3 · Batch audit</h2>
+    <h2>3 &middot; Batch audit</h2>
     <p class="sub">Durable, exportable record: serial, record hash, public-key prefix, PASS/FAIL, timestamp, operator/witness, destruction sign-off. The words are never recorded.</p>
     <div id="auditOut" class="mono"></div>
     <button id="exportBtn">Export audit (JSON)</button>

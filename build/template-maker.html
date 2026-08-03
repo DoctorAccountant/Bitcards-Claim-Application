@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
-<title>Bitcard MAKER tool — INTERNAL / OFFLINE (v0.4)</title>
+<title>Bitcard MAKER tool, INTERNAL / OFFLINE (v0.4)</title>
 <style>
   body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:760px;margin:0 auto;padding:18px;color:#1a1a1a;background:#fbfaf6}
   h1{font-size:20px;margin:0 0 2px}
@@ -20,20 +20,20 @@
 </style>
 </head>
 <body>
-  <h1>Bitcard maker tool — INTERNAL</h1>
+  <h1>Bitcard maker tool, INTERNAL</h1>
   <p class="sub">Generates Part 1 + a card record (no issuer key). Spec v0.4. Network shown in the status line.</p>
-  <div class="warn">⚠ Internal card factory. It generates each card's Part 1 (the per-card secret). Do NOT give it to recipients — they use the separate claim app. After making a card, SEAL Part 1 on the card and DESTROY the maker copy (§2a).</div>
+  <div class="warn">&#x26A0; Internal card factory. It generates each card's Part 1 (the per-card secret). Do NOT give it to recipients, they use the separate claim app. After making a card, SEAL Part 1 on the card and DESTROY the maker copy (&sect;2a).</div>
 
   <div class="panel">
-    <h2>0 · Status / self-test</h2>
-    <div id="status">starting…</div>
+    <h2>0 &middot; Status / self-test</h2>
+    <div id="status">starting...</div>
     <div id="buildhash"></div>
     <div id="selftest" class="mono"></div>
   </div>
 
   <div class="panel">
-    <h2>1 · Create a card</h2>
-    <p class="sub">Generates Part 1 and a QR card record. In production the Part-1 words are sealed on the card and the maker copy destroyed (§2a). Verify each sealed card before it ships using the separate keyless <b>qc-tool.html</b>.</p>
+    <h2>1 &middot; Create a card</h2>
+    <p class="sub">Generates Part 1 and a QR card record. In production the Part-1 words are sealed on the card and the maker copy destroyed (&sect;2a). Verify each sealed card before it ships using the separate keyless <b>qc-tool.html</b>.</p>
     <button id="genCard">Create card</button>
     <div id="cardOut" class="mono"></div>
   </div>
