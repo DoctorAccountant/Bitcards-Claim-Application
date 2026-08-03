@@ -59,8 +59,8 @@ function run({ live, onConfirm }){
 let pass = 0, fail = 0;
 const ok = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL: ' + name)); };
 
-const CARD_101 = 'AQABAQNeyFBDvBKLzkvd64SOllZZHCuKXg4IsZ9iuQLKISgIOwABX_U';
-const CARD_201 = 'AQABAQLfRDXIEvQOzzQua7XN1bX0GV4ADGLZhtcuHx0nACm7lgABYFk';
+const CARD_101 = 'AQABAQNeyFBDvBKLzkvd64SOllZZHCuKXg4IsZ9iuQLKISgIOwAAAGU';
+const CARD_201 = 'AQABAQLfRDXIEvQOzzQua7XN1bX0GV4ADGLZhtcuHx0nACm7lgAAAMk';
 
 // ---- 1. LIVE (https) must refuse to generate or reveal anything ----
 {
@@ -85,7 +85,7 @@ const CARD_201 = 'AQABAQLfRDXIEvQOzzQua7XN1bX0GV4ADGLZhtcuHx0nACm7lgABYFk';
   ok('offline: status says ready', /ready/i.test(els.status.textContent));
 
   els.cardUri.value = CARD_101; els.cardUri.dispatch('input');
-  ok('offline: card recognised', /card loaded \(No\. 90101\)/.test(els.cardStatus.textContent), els.cardStatus.textContent);
+  ok('offline: card recognised', /card loaded \(No\. 101\)/.test(els.cardStatus.textContent), els.cardStatus.textContent);
 
   els.modeSetup.onclick();
   ok('offline: setup panel opened', !els.setupCard.classList.contains('hide'));
@@ -194,7 +194,7 @@ const CARD_201 = 'AQABAQLfRDXIEvQOzzQua7XN1bX0GV4ADGLZhtcuHx0nACm7lgABYFk';
   ok('hash switch: first card generated words', firstWords !== '');
   globalThis.location.hash = '#' + CARD_201;
   win.dispatch('hashchange');
-  ok('hash switch: new card is loaded', /card loaded \(No\. 90201\)/.test(els.cardStatus.textContent), els.cardStatus.textContent);
+  ok('hash switch: new card is loaded', /card loaded \(No\. 201\)/.test(els.cardStatus.textContent), els.cardStatus.textContent);
   ok('hash switch: previous generated words cleared', els.outWords.textContent === '');
   ok('hash switch: previous deposit address cleared', els.outSetupAddr.textContent === '');
   ok('hash switch: setup panel hidden', els.setupResult.classList.contains('hide'));
