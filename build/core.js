@@ -233,6 +233,30 @@ export function normCardInput(v){
   return m ? 'bitcard:' + m[0] : '';
 }
 
+// ---- guarded key generation ----
+// Every set of words in the product comes from here, so the check cannot be present at one call site and
+// missing at another. A CSPRNG normally either works or throws, but a generator stuck at a constant returns
+// SUCCESSFULLY with dead bytes: 16 zero bytes produce 'abandon abandon ... about', a phrase printed in every
+// BIP39 tutorial. Accepting that is silent and permanent. If it happened on a buyer's device the two-half
+// scheme would quietly collapse to one half, and because the card's public key is printed on the card,
+// anyone could compute the funding address and watch for it. Nothing visible would be wrong at the time.
+//
+// Refuse loudly rather than retry: a stuck generator would make a retry loop spin forever, and a caller
+// that swallows this error is a bug we want to see immediately, not a silent weak key.
+// A healthy draw trips neither check: 16 identical bytes is 2^-120, and two equal draws is 2^-128.
+export function newMnemonic(){
+  const a = bip39.generateMnemonic(wordlist, 128);
+  const b = bip39.generateMnemonic(wordlist, 128);
+  if(a === b) throw new Error('this device returned the same random value twice, so it cannot make safe words [RNG-01]');
+  for(const m of [a, b]){
+    const e = bip39.mnemonicToEntropy(m, wordlist);
+    let constant = true;
+    for(let i = 1; i < e.length; i++){ if(e[i] !== e[0]){ constant = false; break; } }
+    if(constant) throw new Error('this device returned a constant random value, so it cannot make safe words [RNG-01]');
+  }
+  return a;   // b is discarded: it exists only to prove the generator moves
+}
+
 // ---- key scheme (spec §3) ----
 export function halfScalar(mnemonic){
   if(!bip39.validateMnemonic(mnemonic.trim().toLowerCase(), wordlist)) throw new Error('bad BIP39 mnemonic/checksum');

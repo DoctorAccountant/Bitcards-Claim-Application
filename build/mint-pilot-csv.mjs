@@ -21,7 +21,7 @@ import { NET } from './config.js';
 // divergence between mint and the claim app would mint cards that fund normally and cannot be opened.
 // buildRecord emits v2 (46 bytes, 5-byte checksum over the first 41), so every batch from here on is
 // self-checking: a mistyped card code fails its own checksum with no embedded batch table needed.
-import { halfScalar, verifyFrozenVector, buildRecord, parseAndVerifyCard } from './core.js';
+import { halfScalar, verifyFrozenVector, buildRecord, parseAndVerifyCard, newMnemonic } from './core.js';
 import { KNOWN_BATCH } from './known-batch.js';
 
 const APP_URL = 'https://bitcards.xyz/app.html';   // the live, audited claim app the QR opens
@@ -29,7 +29,9 @@ const n = secp.CURVE.n;
 
 function mint(serial){
   let m1, d1;
-  for(;;){ m1 = bip39.generateMnemonic(wordlist, 128); try{ d1 = halfScalar(m1); break; }catch(e){ /* ~1e-39; regenerate */ } }
+  // newMnemonic() is OUTSIDE the try on purpose: a stuck-generator error must propagate, not be
+  // swallowed by the retry loop that exists only for the ~1e-39 out-of-range scalar case.
+  for(;;){ m1 = newMnemonic(); try{ d1 = halfScalar(m1); break; }catch(e){ /* ~1e-39; regenerate */ } }
   const P1 = secp.getPublicKey(hex.decode(d1.toString(16).padStart(64, '0')), true);
   const recordB64 = b64u.encode(buildRecord(P1, serial));
   // round-trip through the PRODUCTION parser before anything is written: the record a customer scans must

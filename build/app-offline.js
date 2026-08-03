@@ -6,7 +6,7 @@
 // It NEVER touches the network: imports only pure crypto + DOM helpers from core.js (no getUtxos / broadcastTx / fetch),
 // page CSP is connect-src 'none'. Works with EXISTING v0.4 cards unchanged (public record in, no card change needed).
 // Copy rules: no em dashes; JS single-quoted strings avoid apostrophes.
-import { $, log, NET, bip39, wordlist, halfScalar, pubOfScalar, setupAddress, combine, parseAndVerifyCard, normCardInput, normWords, toWIF, hexlib, showBuildHash, verifyFrozenVector, knownCardStatus } from './core.js';
+import { $, log, NET, bip39, wordlist, halfScalar, pubOfScalar, setupAddress, combine, parseAndVerifyCard, normCardInput, normWords, toWIF, hexlib, showBuildHash, verifyFrozenVector, knownCardStatus, newMnemonic } from './core.js';
 
 window.addEventListener('error', e => { const s=document.getElementById('status'); if(s) s.textContent='BUNDLE ERROR: '+(e.message||(e.error&&e.error.message)||e); });
 
@@ -173,7 +173,7 @@ function init(){
     }
     clearSetup();
     try{
-      const m = bip39.generateMnemonic(wordlist, 128);
+      const m = newMnemonic();
       const addr = setupAddress(card.P1hex, halfScalar(m));   // card public half + fresh half, all on this device
       setupState = { p1hex: card.P1hex, mnemonic: m, addr };
       setupVerified = false;

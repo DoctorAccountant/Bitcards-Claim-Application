@@ -4,7 +4,7 @@
 // Copy rules: no em dashes anywhere; JS strings avoid apostrophes (use full words); HTML may use contractions.
 import { $, log, bip39, wordlist, btc, BTCNET, NET, hexlib, b64u,
   parseAndVerifyCard, normCardInput, normWords, buildRecord, halfScalar, pubOfScalar, setupAddress, combine, bigToBytes32, showBuildHash,
-  estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed, verifyFrozenVector, knownCardStatus } from './core.js';
+  estVbytes, MAX_FEERATE, bumpEligible, splitConfirmed, verifyFrozenVector, knownCardStatus, newMnemonic } from './core.js';
 import { getUtxos, feeRate, broadcastTx } from './net.js';   // network layer (online app only)
 import { ENDPOINTS } from './endpoints.js';                  // node URLs (online app only); the offline tool never imports this
 
@@ -46,7 +46,7 @@ function frozenVectorGate(){
 function runSelfTest(){
   try{
     const fv = verifyFrozenVector();
-    const d1 = halfScalar(bip39.generateMnemonic(wordlist,128)), d2 = halfScalar(bip39.generateMnemonic(wordlist,128));
+    const d1 = halfScalar(newMnemonic()), d2 = halfScalar(newMnemonic());
     const aggOK = setupAddress(hexlib.encode(pubOfScalar(d1)), d2) === combine(d1, d2).address;
     const P1 = pubOfScalar(d1);
     const uri = 'bitcard:' + b64u.encode(buildRecord(P1, 42));
@@ -349,7 +349,7 @@ function init(){
         try{ if(await checkFunded() > 0){ log('setupOut','Stop: bitcoin arrived on these words while you were deciding. Keeping them. To move that bitcoin, go back and choose: This card was given to me.','bad'); return; } }
         catch(e){ log('setupOut','We could not re-check the network, so we did not replace the words. Try again in a moment.','bad'); return; }
       }
-      const m2 = bip39.generateMnemonic(wordlist,128);
+      const m2 = newMnemonic();
       const addr = setupAddress(card.P1hex, halfScalar(m2));
       setup = { p1: card.P1hex, addr };
       stateCard = card.P1hex;   // bind this setup to the loaded card (audit: card A->B)

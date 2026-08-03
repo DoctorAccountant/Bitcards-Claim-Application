@@ -34,15 +34,26 @@ for (const f of OURS) {
   for (const [needle, why] of BANNED) ok(f + ': no ' + why, !s.includes(needle));
 }
 
-// ---------- 2. Key material comes from exactly one place, and it is the platform CSPRNG ----------
-// Our apps never call a random function directly; they call bip39.generateMnemonic, which draws from
-// @noble/hashes randomBytes, which is crypto.getRandomValues (browser) / node:crypto (server).
+// ---------- 2. Key material comes from exactly one place, and that place is guarded ----------
+// Every set of words must come from core's newMnemonic(), which draws from bip39.generateMnemonic (and so
+// from crypto.getRandomValues / node:crypto) AND rejects a generator stuck at a constant. A call site that
+// reaches generateMnemonic directly would skip that guard, so calling it outside core.js is a failure:
+// this is the check that stops the stuck-RNG defense from being present in one place and missing in another.
 for (const f of ['app-claim.js', 'app-offline.js', 'mint-pilot-csv.mjs']) {
   let s; try { s = fs.readFileSync(new URL(f, import.meta.url), 'utf8'); } catch (e) { continue; }
-  const gens = (s.match(/generateMnemonic\(/g) || []).length;
+  const guarded = (s.match(/newMnemonic\(/g) || []).length;
+  const raw = (s.match(/bip39\.generateMnemonic\(|[^w]generateMnemonic\(/g) || []).length;
   const direct = (s.match(/randomBytes\(|getRandomValues\(/g) || []).length;
-  ok(f + ': key material only via generateMnemonic, no hand-rolled draws', direct === 0, direct + ' direct calls');
-  if (f !== 'app-offline.js') ok(f + ': does generate keys (' + gens + ' call sites)', gens > 0);
+  ok(f + ': no hand-rolled entropy draws', direct === 0, direct + ' direct calls');
+  ok(f + ': never calls generateMnemonic directly (that would skip the stuck-generator guard)', raw === 0, raw + ' raw call(s)');
+  ok(f + ': generates keys through the guard (' + guarded + ' call sites)', guarded > 0);
+}
+// and core.js must be the only file that reaches the raw generator
+{
+  const core = fs.readFileSync(new URL('core.js', import.meta.url), 'utf8');
+  const inCore = (core.match(/generateMnemonic\(/g) || []).length;
+  ok('core.js holds the only raw generator calls (' + inCore + ')', inCore > 0);
+  ok('core.js exports the guarded generator', /export function newMnemonic\(/.test(core));
 }
 
 // ---------- 3. The library FAILS CLOSED, verified by reading its source ----------
@@ -63,6 +74,39 @@ for (const f of ['app-claim.js', 'app-offline.js', 'mint-pilot-csv.mjs']) {
     const returns = (body.match(/return /g) || []).length;
     ok('exactly two return paths, both cryptographic (got ' + returns + ')', returns === 2, body);
   }
+}
+
+// ---------- 3b. A generator stuck at a constant returns SUCCESSFULLY with dead bytes ----------
+// The library throws when no secure source exists, which is the loud case and is covered above. The quiet
+// case is a source that returns bytes that are not random. 16 zero bytes produce the published
+// 'abandon ... about' phrase. On a buyer's device that would collapse the two-half scheme to one half
+// with nothing visibly wrong, and the funding address would be computable by anyone from the card's
+// printed public key. newMnemonic() is the one place all key generation goes through, so it is tested here.
+{
+  const { newMnemonic } = await import('./core.js');
+  const realGRV = globalThis.crypto && globalThis.crypto.getRandomValues;
+  const stub = fn => { globalThis.crypto.getRandomValues = fn; };
+  const throwsRng = () => { try { newMnemonic(); return false; } catch (e) { return /RNG-01/.test(e.message); } };
+
+  ok('a healthy generator produces words normally', (() => { try { return newMnemonic().split(' ').length === 12; } catch (e) { return false; } })());
+
+  stub(a => a.fill(0));
+  ok('a generator stuck at ZERO is refused (would be the abandon phrase)', throwsRng());
+
+  stub(a => a.fill(255));
+  ok('a generator stuck at 0xff is refused (would be the zoo phrase)', throwsRng());
+
+  stub(a => a.fill(0x5a));
+  ok('a generator stuck at an arbitrary constant is refused', throwsRng());
+
+  // not byte-constant, but stuck: every DRAW is identical. Catching this needs two draws, not one.
+  let counter = 0;
+  stub(a => { for (let i = 0; i < a.length; i++) a[i] = (i * 7 + 3) & 255; counter++; return a; });
+  ok('a generator returning the SAME draw every time is refused', throwsRng());
+  ok('the stuck-draw case really was exercised (drew twice)', counter >= 2, 'drew ' + counter + ' times');
+
+  if (realGRV) globalThis.crypto.getRandomValues = realGRV;
+  ok('the real generator still works after the stubs are removed', (() => { try { return newMnemonic().split(' ').length === 12; } catch (e) { return false; } })());
 }
 
 // ---------- 4. Live output sanity: catastrophic failure would show here ----------
