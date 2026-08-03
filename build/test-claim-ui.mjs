@@ -7,10 +7,43 @@
 import fs from 'node:fs';
 import * as btc from '@scure/btc-signer';
 import { hex } from '@scure/base';
+import { secp256k1 as secp } from '@noble/curves/secp256k1';
+let lastRejectReason = null;
 
 // An honest node echoes back the txid of the transaction it was handed. The app requires that echo to
 // match the id it computed locally, so the mock has to actually parse the posted transaction.
 const txidOf = rawHex => { try{ return btc.Transaction.fromRaw(hex.decode(rawHex.trim())).id; }catch(e){ return null; } };
+
+// A real node also REJECTS a transaction whose signature does not spend the output it claims. Echoing the
+// txid alone cannot detect that: segwit computes the txid WITHOUT witness data, so a mangled signature
+// leaves the id byte-identical. External review, 2026-08-03, finding 4: one flipped byte in the witness
+// public key still produced ALL SUITES PASSED, meaning the gate advertised signing coverage it did not
+// have. A node that accepts an unspendable transaction is not a useful stand-in for the network.
+// Amounts come from the UTXO set the "chain" holds, exactly as a real node looks them up: the input value
+// is committed to by the BIP143 sighash but is NOT carried in the serialized transaction.
+function witnessValid(rawHex, expectPubHex, utxos){
+  try{
+    const tx = btc.Transaction.fromRaw(hex.decode(rawHex.trim()));
+    if(tx.inputsLength === 0) return 'no inputs';
+    for(let i = 0; i < tx.inputsLength; i++){
+      const inp = tx.getInput(i);
+      const w = inp.finalScriptWitness;
+      if(!w || w.length !== 2) return 'witness is not a 2-item P2WPKH stack';
+      const [sigBytes, pubBytes] = w;
+      if(expectPubHex && hex.encode(pubBytes) !== expectPubHex) return 'witness pubkey is not the combined card key';
+      const outpoint = hex.encode(inp.txid) + ':' + inp.index;
+      const known = (utxos || []).find(u => u.txid + ':' + u.vout === outpoint);
+      if(!known) return 'spends an output the chain does not have: ' + outpoint;
+      // BIP143: for a P2WPKH input the scriptCode in the preimage is the P2PKH form
+      // (0x1976a914{keyhash}88ac), NOT the witness program itself.
+      const scriptCode = btc.p2pkh(pubBytes).script;
+      const sighash = tx.preimageWitnessV0(i, scriptCode, sigBytes[sigBytes.length - 1], BigInt(known.value));
+      const sig = secp.Signature.fromDER(sigBytes.slice(0, -1));
+      if(!secp.verify(sig, sighash, pubBytes)) return 'signature does not verify against the BIP143 sighash';
+    }
+    return null;
+  }catch(e){ return 'witness check threw: ' + e.message; }
+}
 
 const BUNDLE = process.argv[2] || 'app-claim.bundle.js';
 const CARD_999 = 'AQABAQOrOxUP6VvN0TIX0jhu801U5qRPbtBVoprrQ1nfUazLJgAAA-c';
@@ -49,16 +82,24 @@ function boot(net = {}){
   globalThis.confirm = m => (net.onConfirm ? net.onConfirm(m) : true);
   try{ Object.defineProperty(globalThis,'navigator',{value:{clipboard:{writeText(){}}},configurable:true}); }catch(e){}
 
-  const utxos = net.utxos === undefined ? [] : net.utxos;
+  // Read net.utxos on EVERY call rather than snapshotting at boot. A snapshot cannot express the case that
+  // matters most here: a payment landing on the card between Review and Send. A test can now mutate the
+  // array mid-flow and the app sees it, exactly as it would against a real node.
   globalThis.fetch = async (url, opts) => {
+    const utxos = net.utxos === undefined ? [] : net.utxos;
     if(opts && opts.method === 'POST'){
       if(net.rejectPost && net.rejectPost(url)) return { ok:false, status:400, text:async()=>'rejected by this node' };
+      // behave like a real node: refuse anything that would not actually spend
+      const bad = net.skipWitnessCheck ? null : witnessValid(opts.body, net.expectPub, utxos);
+      if(bad){ lastRejectReason = bad; return { ok:false, status:400, text:async()=>'non-mandatory-script-verify-flag: '+bad }; }
       const honest = txidOf(opts.body);
       return { ok:true, status:200, text:async()=> (net.broadcastTxid || honest || TXID) };
     }
     if(/\/tx\/[0-9a-f]{64}\/status/.test(url)) return { ok: net.observedBy ? net.observedBy(url) : true, status:200, text:async()=>'{}' };
     if(/fee-estimates/.test(url)) return { ok:true, status:200, json:async()=>({ '2': net.feeRate || 2 }) };
-    if(/\/utxo/.test(url)) return { ok:true, status:200, json:async()=>utxos };
+    // Return a fresh copy, as a real node does. Handing back the same array object let the app's stored
+    // snapshot alias the live list, so a mid-flow change mutated both and no comparison could ever see it.
+    if(/\/utxo/.test(url)) return { ok:true, status:200, json:async()=>utxos.map(u=>({ ...u, status:{ ...u.status } })) };
     return { ok:true, status:200, json:async()=>({}), text:async()=>'{}' };
   };
   new Function(fs.readFileSync(BUNDLE,'utf8'))();
@@ -169,6 +210,55 @@ async function claimToReview(net){
   els.bcastBtn.onclick(); await tick(150);
   ok('claim: forced send after edit does NOT broadcast', !/Sent\./i.test(els.bcastOut.textContent), els.bcastOut.textContent.slice(0,90));
   ok('claim: forced send tells user to review again', /Review before sending/i.test(els.bcastOut.textContent));
+}
+
+// ---------------- 4b. CLAIM: a deposit arriving between Review and Send must not be left behind ----------
+// External review, 2026-08-03, principal blocker. Review builds a draft from a snapshot of the card's coins.
+// If another payment lands before Send, broadcasting the stale draft sweeps only the coins we knew about,
+// and the success screen then told the customer the card was spent for good and to stop using it. The
+// bitcoin is not gone, but the words usually are. Nothing else in the suite covered the mid-flow window.
+{
+  const net = { utxos:[utxo(200000,true)] };
+  const els = await claimToReview(net);
+  ok('late deposit: review succeeded on the original coin', /Nothing has been sent yet/i.test(els.claimOut.textContent));
+
+  net.utxos.push({ txid:'c'.repeat(64), vout:0, value:300000, status:{confirmed:true} });   // second payment arrives
+  els.destConfirm.checked = true;
+  await els.bcastBtn.onclick(); await tick(200);
+
+  // match the success marker, not /sent/i: the refusal text itself contains "nothing was sent"
+  ok('late deposit: does NOT broadcast the stale draft', !/✓ Sent/.test(els.bcastOut.textContent), els.bcastOut.textContent.slice(0,120));
+  ok('late deposit: says the balance changed', /changed while you were checking/i.test(els.bcastOut.textContent));
+  ok('late deposit: carries the support code', /UTXO-01/.test(els.bcastOut.textContent));
+  ok('late deposit: sends the customer back to Review', /Review before sending/i.test(els.bcastOut.textContent));
+  ok('late deposit: hides the send button until re-reviewed', els.bcastBtn.classList.contains('hide'));
+
+  // re-reviewing must pick up BOTH coins, otherwise the guard just blocks the claim forever
+  els.reviewBtn.onclick(); await tick(200);
+  ok('late deposit: re-review now includes both coins (500000 sats)', /500,?000/.test(els.claimOut.textContent), els.claimOut.textContent.slice(0,140));
+}
+
+// A vanishing coin is the same defect mirrored: the draft would be invalid, and silently retrying is worse
+// than stopping. Also covers both nodes having been briefly behind at Review.
+{
+  const net = { utxos:[utxo(200000,true), { txid:'d'.repeat(64), vout:1, value:70000, status:{confirmed:true} }] };
+  const els = await claimToReview(net);
+  net.utxos.pop();
+  els.destConfirm.checked = true;
+  await els.bcastBtn.onclick(); await tick(200);
+  ok('coin disappears before send: refuses to broadcast', !/✓ Sent/.test(els.bcastOut.textContent), els.bcastOut.textContent.slice(0,120));
+}
+
+// The success screen must never assert the card is empty. We only ever know that one payment left.
+{
+  const net = { utxos:[utxo(200000,true)] };
+  const els = await claimToReview(net);
+  els.destConfirm.checked = true;
+  await els.bcastBtn.onclick(); await tick(200);
+  const t = els.bcastOut.textContent;
+  ok('success: broadcast succeeded when nothing changed', /Sent\./i.test(t), t.slice(0,120));
+  ok('success: does NOT claim the card is spent for good', !/spent for good/i.test(t), t.slice(0,200));
+  ok('success: tells the customer to verify zero before discarding', /shows zero/i.test(t), t.slice(0,240));
 }
 
 // ---------------- 5. CLAIM: broadcast requires independent observation ----------------

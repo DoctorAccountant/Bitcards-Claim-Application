@@ -12,7 +12,12 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
 import { hex, base64urlnopad as b64u } from '@scure/base';
-import { halfScalar, verifyFrozenVector } from './core.js';
+// Decode through the EXACT path the shipped app uses. This script previously sliced the record by hand,
+// which accepted things the app rejects: appending one base64 character makes a 42-byte record that the
+// hand-rolled slice happily read as valid while the real parser refuses it. The verifier would then
+// certify a batch of cards that no customer could open. A verifier must be strictly no more permissive
+// than the thing it is certifying for.
+import { halfScalar, verifyFrozenVector, normCardInput, parseAndVerifyCard } from './core.js';
 
 const [csvPath, manPath] = process.argv.slice(2);
 if (!csvPath || !manPath) { console.error('usage: node verify-printed-batch.mjs <printer.csv> <QC-manifest.json>'); process.exit(1); }
@@ -40,15 +45,18 @@ for (const line of lines) {
   const url = c[qi];
   rows++;
   try {
-    const rec = b64u.decode(url.slice(url.lastIndexOf('#') + 1));
-    const p1InQR = hex.encode(rec.slice(4, 37));
+    // production decode: normCardInput + parseAndVerifyCard, byte for byte what the app does
+    const parsed = parseAndVerifyCard(normCardInput(url));
+    const p1InQR = parsed.P1hex;
     // the one check that matters: do the PRINTED words still reproduce the PRINTED QR key today?
     const p1FromWords = hex.encode(secp.getPublicKey(hex.decode(halfScalar(words).toString(16).padStart(64, '0')), true));
     if (p1FromWords === p1InQR) wordsMatchQR++; else badSerials.push(serial);
     const m = byserial.get(serial);
     if (m && m.p1Hex === p1InQR) qrMatchManifest++;
-    const recSerial = ((rec[37] << 24) | (rec[38] << 16) | (rec[39] << 8) | rec[40]) >>> 0;
-    if (recSerial === serial) serialInRecord++;
+    if (parsed.serial === serial) serialInRecord++;
+    // network byte is not surfaced by the parser, which only ACCEPTS the configured network, so a
+    // testnet record would already have thrown above. Re-read it anyway so the count means something.
+    const rec = b64u.decode(url.slice(url.lastIndexOf('#') + 1));
     if (rec[1] === 0) mainnet++;
     p1s.add(p1InQR);
   } catch (e) { badSerials.push(serial); }

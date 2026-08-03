@@ -60,5 +60,25 @@ cfg.artifacts = want;
 cfg.updated = new Date().toISOString().slice(0, 10);
 cfg.releaseCommit = commit;
 writeFileSync(CFG, JSON.stringify(cfg, null, 2) + '\n');
+
+// The README is the instruction we give people for checking that the app they loaded is the app we
+// published. It was updated by hand and drifted, so it named hashes that no longer matched anything live:
+// a customer following it correctly would conclude the genuine app was wrong. Anything that states a hash
+// has to be written by the same step that verified it.
+for (const rel of ['release/README.md', 'bitcard-permanence-runbook.md']) {
+  let p, txt;
+  try { p = new URL(rel, ROOT); txt = readFileSync(p, 'utf8'); } catch (e) { console.log('  (no ' + rel + ', skipped)'); continue; }
+  const before = txt;
+  for (const [name, h] of Object.entries(want)) {
+    // replace any 64-hex that currently follows a mention of this artifact, whatever the old value was
+    const src = LOCAL[name].split('/').pop();
+    for (const label of [name, src]) {
+      txt = txt.replace(new RegExp('(' + label.replace('.', '\\.') + '[^\\n]*?)\\b[0-9a-f]{64}\\b', 'g'), '$1' + h);
+      txt = txt.replace(new RegExp('(sha256 of [^\\n]*' + label.replace('.', '\\.') + '[^\\n]*\\n+)[0-9a-f]{64}', 'g'), '$1' + h);
+    }
+  }
+  if (txt !== before) { writeFileSync(p, txt); console.log('  updated hashes in ' + rel); }
+}
+
 console.log('\nEvery live URL serves the built bytes. monitor/expected-hashes.json updated (commit ' + commit + ').');
 console.log('Now run: powershell -File monitor/bitcard-hash-monitor.ps1   (expect OK)');

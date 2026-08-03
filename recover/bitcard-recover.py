@@ -223,6 +223,20 @@ _TV = {
     "pub":   "0224e2c50bd374f89dd83f7be42af1ef0a3d3092314ec76cdcbd10eea5c425a51c",
     "addr_testnet": "tb1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrxddllm",
     "addr_mainnet": "bc1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrvtkvyg",
+    "wif_mainnet":  "L2GNgkXGSNjb1fTyt9WSbwHX8s3LwRRYNExo8AoBAg2yTDJMnXBF",
+}
+# In the vector above d1+d2 is LESS than the curve order, so it never exercises "% N". Both halves are
+# near-uniform below the order, so d1+d2 exceeds it for roughly HALF of all real cards. Deleting the
+# reduction entirely still produced SELFTEST PASS with only the vector above, which is a false assurance
+# for the one tool meant to work when nothing else is left. This pair wraps.
+_TV_WRAP = {
+    "part1": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "part2": "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
+    "d":     "09c1414aedff770426c5af145136e7f078d71028f7f7a6fe50a7169de19d036a",
+    "pub":   "039fb65f2f734362761ac5a9fab473bb230a74b7d99f37fa04c2d9d32ada738404",
+    "addr_testnet": "tb1qlpcjezx3dlyyywdq0g6qp6r0gjkk4rceus5338",
+    "addr_mainnet": "bc1qlpcjezx3dlyyywdq0g6qp6r0gjkk4rcekk0z25",
+    "wif_mainnet":  "KwYfzgnFwKzL4eJAzhnph2BwkCNHNDmvznGLpBiKQqyqDhChtoQa",
 }
 def selftest():
     t = recover(_TV["part1"], _TV["part2"], mainnet=False)
@@ -242,15 +256,26 @@ def selftest():
         ripemd160(b"abcdefghijklmnopqrstuvwxyz").hex() == "f71c27109c692c1b56bbdceb5b9d2865b3708dbc" and
         ripemd160(b"a" * 1000000).hex()    == "52783243c1697bdbe16d37f97f68f08325dc1528"
     )
+    # the wrap vector: d1+d2 >= n, so this is the only check here that proves "% N" is present and correct
+    w = recover(_TV_WRAP["part1"], _TV_WRAP["part2"], mainnet=True)
+    wt = recover(_TV_WRAP["part1"], _TV_WRAP["part2"], mainnet=False)
+    wrap_sum = half_scalar(_TV_WRAP["part1"]) + half_scalar(_TV_WRAP["part2"])
     checks = {
         "RIPEMD-160 matches published vectors": rmd_ok,
         "combined d matches vector":        t["d_hex"] == _TV["d"],
         "public key matches vector":        t["pubkey"] == _TV["pub"],
         "testnet address matches vector":   t["address"] == _TV["addr_testnet"],
         "mainnet address matches vector":   m["address"] == _TV["addr_mainnet"],
+        "mainnet WIF matches vector":       m["wif"] == _TV["wif_mainnet"],
         "halves are commutative":           swapped,
         "wordlist has 2048 words":          len(_WORDS) == 2048,
         "mistyped word is rejected":        rejected,
+        "wrap vector really does exceed n": wrap_sum >= N,
+        "wrap: combined d matches vector":  w["d_hex"] == _TV_WRAP["d"],
+        "wrap: public key matches vector":  w["pubkey"] == _TV_WRAP["pub"],
+        "wrap: mainnet address matches":    w["address"] == _TV_WRAP["addr_mainnet"],
+        "wrap: testnet address matches":    wt["address"] == _TV_WRAP["addr_testnet"],
+        "wrap: mainnet WIF matches":        w["wif"] == _TV_WRAP["wif_mainnet"],
     }
     for k, v in checks.items(): print("  %-34s %s" % (k + ":", v))
     ok = all(checks.values())

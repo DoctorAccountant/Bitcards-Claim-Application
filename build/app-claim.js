@@ -462,6 +462,20 @@ function init(){
       log('bcastOut','The wallet address changed after you reviewed it. Nothing was sent. Tap "Review before sending" again so you confirm the address it will actually go to.','bad');
       return;
     }
+    // The draft spends an EXACT set of coins captured at Review. If another payment reached the card in
+    // between, or a node was briefly behind and has since caught up, broadcasting the old draft sweeps only
+    // the coins we knew about and leaves the rest on a card the success screen tells people to stop using.
+    // The money is not gone, but the words usually are, so treat a changed set as a hard stop.
+    const utxoKey = list => list.map(u => u.txid + ':' + u.vout + ':' + u.value).sort().join('|');
+    let freshUtxos;
+    try{ freshUtxos = (await getUtxos(claimState.address)).utxos; }
+    catch(e){ log('bcastOut','We could not re-check the card just before sending, so nothing was sent. This is usually a brief network problem. Try again in a minute [NET-02].','bad'); return; }
+    if(utxoKey(freshUtxos) !== utxoKey(lastUtxos)){
+      lastRawTx = null; lastTxId = null; lastReviewedDest = null; lastUtxos = null;
+      $('confirmRow').classList.add('hide'); $('bcastBtn').classList.add('hide');
+      log('bcastOut','The bitcoin on this card changed while you were checking the details, so nothing was sent. Usually this means another payment arrived. Tap "Review before sending" again so all of it is included [UTXO-01].','bad');
+      return;
+    }
     log('bcastOut','Sending...');
     try{
       const r = await broadcastTx(lastRawTx, lastTxId);   // §5: node must echo the txid we computed
@@ -470,7 +484,10 @@ function init(){
       // Red here reads as failure and scares people into thinking their money is lost.
       const bh = document.createElement('span'); bh.className = r.independent ? 'ok' : 'pending';
       if(r.independent){   // host-aware: the accepting node alone can never vouch for its own broadcast
-        bh.textContent = '✓ Sent. Your payment is on its way. It should show in your wallet as pending within a few minutes, and it is only final once your wallet marks it confirmed, usually within the hour. Keep the card and both sets of words until you see it confirmed, not just pending. After that the card is spent for good: never send bitcoin to this card again, because anyone who has seen the opened card can take it.';
+        // Never assert the card is empty. We know one payment left, not that nothing remains: a deposit can
+        // land after the draft is built, and a node can be behind. Telling someone a card is finished when
+        // it still holds coins, and to discard it, is how a correct payment still ends in a permanent loss.
+        bh.textContent = '✓ Sent. Your payment is on its way. It should show in your wallet as pending within a few minutes, and it is only final once your wallet marks it confirmed, usually within the hour. Keep the card and both sets of words until you see it confirmed, not just pending. Once it has confirmed, check this card one more time and make sure it shows zero before you throw anything away: if another payment arrived while you were sending, some bitcoin can still be sitting on it. Never send bitcoin to this card again, because anyone who has seen the opened card can take it.';
       }else{
         bh.textContent = 'One server accepted the payment, but no second server has seen it yet, so it may not have travelled beyond that one server. Keep the card and both sets of words for now, and check your wallet app in about ten minutes. If nothing has arrived after an hour, come back to this page and send again. That is safe: the same bitcoin cannot be sent twice, so a second attempt cannot pay anyone twice.';
       }

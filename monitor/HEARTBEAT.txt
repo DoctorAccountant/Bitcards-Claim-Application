@@ -1,0 +1,7 @@
+﻿Bitcard integrity check
+checked 2026-08-03 14:13:58
+verdict: OK
+watching: ce2ec2c
+all 4 live artifacts match the published hashes
+
+If the timestamp above is more than a few hours old, the monitor is NOT running and the live site is unwatched.

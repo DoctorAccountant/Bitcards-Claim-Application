@@ -14,6 +14,7 @@ import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 
 let pass = 0, fail = 0;
+let batchMode = 'not reached';
 const ok = (n, c, d) => { c ? pass++ : (fail++, console.log('FAIL: ' + n + (d !== undefined ? '\n      ' + d : ''))); };
 
 // ---------- 1. No weak or custom randomness anywhere in our own source ----------
@@ -86,15 +87,24 @@ for (const f of ['app-claim.js', 'app-offline.js', 'mint-pilot-csv.mjs']) {
 // If the generator had failed, these keys are already compromised and the cards must not ship.
 // A SKIP here is indistinguishable from a PASS at the suite summary, which would quietly remove the one
 // tripwire aimed at already-printed key material. So absence is a FAILURE unless explicitly waived.
+// Portability, external review finding 7: this defaulted to a private absolute path, so the advertised
+// ten-suite command could not run cleanly on an auditor's machine. But a silent skip is what made this
+// dangerous in the first place. So: if BITCARD_MANIFEST is set, the manifest MUST exist and pass. If it is
+// not set and no local batch is present, the section reports NOT APPLICABLE on its own line, and the final
+// summary says so too, so a reduced run can never be mistaken for a full one.
 {
+  const explicit = !!process.env.BITCARD_MANIFEST;
   const p = process.env.BITCARD_MANIFEST || 'C:/Users/Cameron/bitcard-mint/bitcard-print-300-QC-manifest.json';
-  const waived = process.argv.includes('--no-batch');
   let man = null;
   try { man = JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) {}
-  ok('minted-batch manifest is present (set BITCARD_MANIFEST, or pass --no-batch to waive)',
-     man !== null || waived, man === null ? 'not found at ' + p : '');
-  if (waived && !man) console.log('  (batch audit explicitly waived with --no-batch)');
+  if (explicit) ok('BITCARD_MANIFEST points at a readable manifest', man !== null, 'not readable: ' + p);
+  if (!man) {
+    batchMode = 'NOT APPLICABLE (no minted batch on this machine)';
+    console.log('  minted-batch audit: ' + batchMode);
+    console.log('  to audit a real batch here, set BITCARD_MANIFEST to its QC-manifest.json');
+  }
   if (man) {
+    batchMode = 'audited ' + p;
     const keys = man.cards.map(c => c.p1Hex);
     ok('minted batch: 300 cards present', keys.length === 300, keys.length);
     ok('minted batch: every public key distinct', new Set(keys).size === keys.length);
@@ -112,5 +122,8 @@ for (const f of ['app-claim.js', 'app-offline.js', 'mint-pilot-csv.mjs']) {
   }
 }
 
-console.log('\n' + (fail === 0 ? 'ENTROPY OK (' + pass + ' passed)' : 'ENTROPY FAILED (' + fail + ' failures)'));
+// State the batch mode on the SUMMARY line, which is what test-all echoes. A reduced run must announce
+// itself where the reader actually looks, not only in scrollback.
+const modeNote = /^NOT APPLICABLE/.test(batchMode) ? ', minted-batch audit NOT APPLICABLE here' : ', minted batch audited';
+console.log('\n' + (fail === 0 ? 'ENTROPY OK (' + pass + ' passed' + modeNote + ')' : 'ENTROPY FAILED (' + fail + ' failures)'));
 process.exit(fail === 0 ? 0 : 1);
