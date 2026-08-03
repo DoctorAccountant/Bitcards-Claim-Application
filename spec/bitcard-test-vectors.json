@@ -1,40 +1,65 @@
 {
   "spec": "bitcard-claim-spec v0.4",
   "curve": "secp256k1",
-  "network": "testnet",
   "scriptType": "P2WPKH",
   "kdf": "BIP39(English, NFKD, empty passphrase) -> PBKDF2-HMAC-SHA512 x2048 -> BIP32 master private key (HMAC-SHA512, key='Bitcoin seed', take left 32 bytes) -> scalar; reject 0 or >= n",
   "aggregation": "d = (d1 + d2) mod n ; P = P1 + P2 (EC point addition) ; address = P2WPKH(compressed P)",
-  "note": "Vectors 1 and 2 are the same pair with the halves swapped; their addresses MUST be identical (additive aggregation is commutative). Mainnet would use the same Pcombined with the 'bc' bech32 prefix instead of 'tb'.",
-  "generatedBy": "bitcard claim-testnet.html reference implementation (@noble/curves, @scure/bip39, @scure/btc-signer)",
+  "note": "Vectors 1 and 2 are the same pair with the halves swapped; their addresses MUST be identical (additive aggregation is commutative). Vector 3 is the case where d1+d2 is GREATER than the curve order and the reduction actually does something: both halves are near-uniform in [0,n), so about half of all real cards land there. An implementation that skips the reduction, or reduces by the wrong modulus, passes vectors 1 and 2 and fails vector 3. Every vector now carries its mainnet address and WIF as well as testnet.",
+  "generatedBy": "build/gen-test-vectors.mjs against build/core.js (@noble/curves, @scure/bip39, @scure/btc-signer). All values computed, none transcribed.",
   "validatedOnChain": "testnet tx d5245874007557429eb8e4267490e1190ed8ac37c763cad5934606a66cdfc96c, confirmed block 5013091 (real funded sweep of an aggregate P1+P2 address)",
   "cardRecord": {
-    "note": "v0.4 — cards carry NO issuer signature. The QR payload is base64url(record) with nothing appended. record(41) = version(1) | network(1) | scripttype(1) | kdf(1) | P1(33, compressed) | serial(4, uint32 BE).",
+    "note": "v0.4 - cards carry NO issuer signature. The QR payload is base64url(record) with nothing appended. record(41) = version(1) | network(1) | scripttype(1) | kdf(1) | P1(33, compressed) | serial(4, uint32 BE).",
     "recordHexExample": "0101010103d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee049400000001",
     "encoding": "cardURI = 'bitcard:' + base64url_nopad(record). The claim app validates version/network/scripttype/kdf and that P1 is a valid secp256k1 point; there is no signature to verify."
   },
   "vectors": [
     {
+      "note": "canonical pair; d1+d2 < n so no reduction occurs",
       "part1Mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
       "part2Mnemonic": "legal winner thank year wave sausage worth useful legal winner thank yellow",
       "d1Hex": "1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67",
       "d2Hex": "7e56ecf5943d79e1f5f87e11c768253d7f3fcf30ae71335611e366c578b4564e",
       "P1": "03d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee0494",
       "P2": "02c4c9a1e37f5601ed4c7d0eb202e0b55e7891c4787853bef6c3b96a187de12d83",
+      "sumBeforeReductionHex": "968eaeb422670fce07c620c22d7d41204ef45a104cb8e4a7e64e41791ad135b5",
+      "reducedModN": false,
       "Pcombined": "0224e2c50bd374f89dd83f7be42af1ef0a3d3092314ec76cdcbd10eea5c425a51c",
       "dCombinedHex": "968eaeb422670fce07c620c22d7d41204ef45a104cb8e4a7e64e41791ad135b5",
-      "addressTestnet": "tb1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrxddllm"
+      "addressMainnet": "bc1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrvtkvyg",
+      "addressTestnet": "tb1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrxddllm",
+      "wifMainnet": "L2GNgkXGSNjb1fTyt9WSbwHX8s3LwRRYNExo8AoBAg2yTDJMnXBF"
     },
     {
+      "note": "vector 1 with the halves swapped; address MUST match vector 1",
       "part1Mnemonic": "legal winner thank year wave sausage worth useful legal winner thank yellow",
       "part2Mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
       "d1Hex": "7e56ecf5943d79e1f5f87e11c768253d7f3fcf30ae71335611e366c578b4564e",
       "d2Hex": "1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67",
       "P1": "02c4c9a1e37f5601ed4c7d0eb202e0b55e7891c4787853bef6c3b96a187de12d83",
       "P2": "03d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee0494",
+      "sumBeforeReductionHex": "968eaeb422670fce07c620c22d7d41204ef45a104cb8e4a7e64e41791ad135b5",
+      "reducedModN": false,
       "Pcombined": "0224e2c50bd374f89dd83f7be42af1ef0a3d3092314ec76cdcbd10eea5c425a51c",
       "dCombinedHex": "968eaeb422670fce07c620c22d7d41204ef45a104cb8e4a7e64e41791ad135b5",
-      "addressTestnet": "tb1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrxddllm"
+      "addressMainnet": "bc1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrvtkvyg",
+      "addressTestnet": "tb1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrxddllm",
+      "wifMainnet": "L2GNgkXGSNjb1fTyt9WSbwHX8s3LwRRYNExo8AoBAg2yTDJMnXBF"
+    },
+    {
+      "note": "REDUCTION CASE: d1+d2 >= n. An implementation that omits mod n fails only here.",
+      "part1Mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+      "part2Mnemonic": "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
+      "d1Hex": "1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67",
+      "d2Hex": "f1897f8c5fd5e11814f80c63eb21cc0c63d1623008f895e83c0e9a770fb66544",
+      "P1": "03d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee0494",
+      "P2": "02e01aa32243f6744a2607466304e326adc7cb77e67363341967bf4700be45391d",
+      "sumBeforeReductionHex": "109c1414aedff770426c5af145136e7ef3385ed0fa740473a1079752ab1d344ab",
+      "reducedModN": true,
+      "Pcombined": "039fb65f2f734362761ac5a9fab473bb230a74b7d99f37fa04c2d9d32ada738404",
+      "dCombinedHex": "09c1414aedff770426c5af145136e7f078d71028f7f7a6fe50a7169de19d036a",
+      "addressMainnet": "bc1qlpcjezx3dlyyywdq0g6qp6r0gjkk4rcekk0z25",
+      "addressTestnet": "tb1qlpcjezx3dlyyywdq0g6qp6r0gjkk4rceus5338",
+      "wifMainnet": "KwYfzgnFwKzL4eJAzhnph2BwkCNHNDmvznGLpBiKQqyqDhChtoQa"
     }
   ]
 }
