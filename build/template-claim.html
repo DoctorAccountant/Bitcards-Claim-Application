@@ -131,7 +131,7 @@
     <div class="brand"><span class="mark">B</span><h1>Bitcard</h1><span id="cardChip" class="hide"></span></div>
     <span id="netbadge"></span>
   </header>
-  <p class="tag">A gift of bitcoin. No account, no sign-up.</p>
+  <p class="tag">A gift of bitcoin. Nothing to install, no sign-up.</p>
 
   <!-- CHOOSER -->
   <div id="chooser">
@@ -141,14 +141,14 @@
       <div id="cardStatus" class="out"></div>
     </div>
     <p class="lead" style="margin:20px 0 0">First, which one are you?</p>
-    <button id="pathGive" class="choice"><span class="ico">🎁</span><span class="txt"><b>I'm giving this card</b><span>Put bitcoin on it, then give it.</span></span></button>
-    <button id="pathClaim" class="choice"><span class="ico">💰</span><span class="txt"><b>This card was given to me</b><span>Move the bitcoin on it to your own wallet.</span></span></button>
+    <button id="pathGive" class="choice"><span class="ico">ðŸŽ</span><span class="txt"><b>I'm giving this card</b><span>Put bitcoin on it, then give it.</span></span></button>
+    <button id="pathClaim" class="choice"><span class="ico">ðŸ’°</span><span class="txt"><b>This card was given to me</b><span>Move the bitcoin on it to your own wallet.</span></span></button>
     <button id="pathBal" class="choice quiet"><span class="txt"><b>Just checking the balance?</b><span>You only need the 12 handwritten words. Keep the panel sealed.</span></span></button>
   </div>
 
   <!-- GIVE FLOW -->
   <div id="giveFlow" class="hide">
-    <span class="back" id="giveBack">← back</span>
+    <span class="back" id="giveBack">â† back</span>
     <p class="lead">Three steps: write the words, check them, add bitcoin. (Was this card given to you, with words already written on it? Go back and choose: This card was given to me.)</p>
     <div class="card">
       <div class="stepline"><span class="stepnum">1</span><h2>Get your 12 words</h2></div>
@@ -159,7 +159,7 @@
     <div class="card">
       <div class="stepline"><span class="stepnum">2</span><h2>Double-check what you wrote</h2></div>
       <p class="lead">Re-type the 12 words exactly as you wrote them on the card, in order, with a space between each word (extra spaces or capitals are fine). If they match, you know the card itself can unlock the bitcoin later.</p>
-      <textarea id="verifyWords" rows="3" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <textarea id="verifyWords" rows="3" placeholder="Type the 12 words with a space between each one" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
       <button id="verifyBtn" class="ghost">Check my words</button>
       <div id="verifyOut" class="out"></div>
     </div>
@@ -176,7 +176,7 @@
 
   <!-- CLAIM FLOW -->
   <div id="claimFlow" class="hide">
-    <span class="back" id="claimBack">← back</span>
+    <span class="back" id="claimBack">â† back</span>
     <div class="card">
       <h2>Claim your bitcoin</h2>
       <p class="lead">Let's see what's on this card, then move it into a wallet of your own, one step at a time. Nothing moves until you tick a box and confirm at the final step, and you can start over at any point before that.</p>
@@ -186,10 +186,10 @@
       <p class="lead">You'll need both sets of 12 words from the back of the card, in the same order they appear on it. Type each set in order, with a space between each word (extra spaces or capitals are fine).</p>
       <div class="warn"><b>Before you scratch:</b> do this on your own phone, somewhere private. Once the panel is off it stays off, and anyone who sees or photographs both sets of words can take the bitcoin.</div>
       <label>The 12 printed words under the scratch panel (scratch it off now)</label>
-      <textarea id="claimP1" rows="3" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <textarea id="claimP1" rows="3" placeholder="Type the 12 words with a space between each one" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
       <div class="wc" id="wc1"></div>
       <label>The 12 handwritten words, written by hand on the card's "your half" lines</label>
-      <textarea id="claimP2" rows="3" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <textarea id="claimP2" rows="3" placeholder="Type the 12 words with a space between each one" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
       <div class="wc" id="wc2"></div>
       <button id="showBtn">Show my bitcoin</button>
       <div id="showOut" class="out"></div>
@@ -198,9 +198,9 @@
     <div class="card hide" id="sendSection">
       <div class="stepline"><span class="stepnum">2</span><h2>Send it to your wallet</h2></div>
       <label>Your wallet address</label>
-      <p class="help">Open your bitcoin wallet app, tap Receive, and copy the address it shows into this box. It usually starts with bc1. An address is like an account number, not a password, so it is fine to copy and paste. Check it after pasting though: some phone and computer viruses swap a copied address for their own. No wallet yet? Tap the button below the box.</p>
+      <p class="help">You need somewhere of your own to put the bitcoin: a bitcoin wallet app, or an exchange account you already use. Open it, tap Receive, and copy the address it shows into this box. It usually starts with bc1. An address is like an account number, not a password, so it is fine to copy and paste. Check it after pasting though: some phone and computer viruses swap a copied address for their own. Nowhere to send it yet? Tap the button below the box.</p>
       <textarea id="dest" rows="2" placeholder="bc1..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
-      <button id="genDest" class="ghost">I don't have a wallet yet</button>
+      <button id="genDest" class="ghost">I have nowhere to send it yet</button>
       <div id="destOut" class="out"></div>
       <button id="reviewBtn">Review before sending</button>
       <div id="claimOut" class="out"></div>
@@ -214,12 +214,12 @@
 
   <!-- BALANCE FLOW -->
   <div id="balFlow" class="hide">
-    <span class="back" id="balBack">← back</span>
+    <span class="back" id="balBack">â† back</span>
     <div class="card">
       <h2>Check the balance</h2>
       <p class="lead">You only need the 12 handwritten words. Keep the panel sealed. Type them in order, with a space between each word.</p>
       <label>The 12 handwritten words ("your half" on the card)</label>
-      <textarea id="balWords" rows="3" placeholder="word 1 ... word 12" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <textarea id="balWords" rows="3" placeholder="Type the 12 words with a space between each one" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
       <button id="balCheckBtn">Check the balance</button>
       <div id="balFlowOut" class="out"></div>
     </div>

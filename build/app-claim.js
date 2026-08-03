@@ -82,7 +82,7 @@ async function checkClaimBalance(){
   }
   const total = utxos.reduce((s,u)=>s+u.value,0);
   if(total <= 0){
-    $('showOut').textContent = 'We did not find any bitcoin on this card yet. Three things this can mean. One: it was funded in the last hour and the network is still working on it, so wait a little and tap Try again. Two: a word is typed slightly wrong, so compare both boxes with the card one word at a time. Three: the card was already claimed and the bitcoin has been moved. If you think that is what happened, whoever gave you the card can check what they sent and when.';
+    $('showOut').textContent = 'This card is showing a balance of 0 sats. That is usually one of these, in order of how often it happens. One: a word is typed slightly wrong. A single wrong letter points at a different, empty card, so compare both boxes with the card one word at a time, then tap Try again. Two: bitcoin was added in the last hour and the network is still working on it, so wait a little and check again. Three: it has not been added yet, and whoever gave you the card can tell you. Four: this card was claimed before, so the bitcoin has already been moved on.';
     $('retryBal').classList.remove('hide');
     $('sendSection').classList.add('hide');
     return;
@@ -349,7 +349,7 @@ function init(){
   $('retryBal').onclick = ()=>{ if(claimState) checkClaimBalance(); };
 
   $('genDest').onclick = ()=>{
-    $('destOut').textContent = 'You need a free wallet app to keep the bitcoin. It takes about five minutes. One caution: fake bitcoin wallets do exist in app stores, so before installing anything, check the app has a long history and many reviews, and prefer an open source wallet that other people you trust already use. Then open it, tap Receive, and copy the long address it shows into the box above. There is no rush at all: the bitcoin stays safe on this card until you move it, so you can close this page and come back another day.';
+    $('destOut').textContent = 'You need somewhere of your own to keep the bitcoin. Two options. If you already use an exchange or an app that holds bitcoin, open it, find Receive, and copy the address. Otherwise install a free bitcoin wallet app, which takes about five minutes. Use a trusted one: fake bitcoin wallets do exist in app stores, so check the app has a long history and many reviews, and it is worth asking someone you trust which one they use. There is no rush at all: the bitcoin stays safe on this card until you move it, so you can close this page and come back another day.';
   };
 
   $('reviewBtn').onclick = ()=> run('reviewBtn', async ()=>{
