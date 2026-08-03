@@ -18,9 +18,9 @@ function normWords(s){ return (s||'').trim().toLowerCase().replace(/\s+/g,' '); 
 function checkWords(raw, boxName){
   const m = normWords(raw);
   const words = m ? m.split(' ') : [];
-  if(words.length !== 12) return { err: 'The '+boxName+' has '+words.length+(words.length===1?' word':' words')+', it needs exactly 12.' };
-  for(let i=0;i<12;i++){ if(wordlist.indexOf(words[i]) < 0) return { err: 'In the '+boxName+', word '+(i+1)+' is not on the standard word list. Check it against the card.' }; }
-  try{ halfScalar(m); }catch(e){ return { err: 'All the words are on the list, but the '+boxName+' does not pass its built-in check. Compare it against the card word by word.' }; }
+  if(words.length !== 12) return { err: 'The '+boxName+' has '+words.length+(words.length===1?' word':' words')+', it needs exactly 12. Type them in order with a space between each one.' };
+  for(let i=0;i<12;i++){ if(wordlist.indexOf(words[i]) < 0) return { err: 'In the '+boxName+', word '+(i+1)+' ("'+words[i]+'") is not one of the bitcoin word list words. That is almost always a typo or a misread letter, so nothing is lost. Look at word '+(i+1)+' on the card again and retype it.' }; }
+  try{ halfScalar(m); }catch(e){ return { err: 'The '+boxName+' is very close but not exactly right. Usually one word is misspelled, or two words got swapped. Your bitcoin is safe on the card and nothing has been sent. Compare the box with the card one word at a time.' }; }
   return { m };
 }
 
@@ -82,7 +82,7 @@ async function checkClaimBalance(){
   }
   const total = utxos.reduce((s,u)=>s+u.value,0);
   if(total <= 0){
-    $('showOut').textContent = 'We did not find any bitcoin on this card. If it was sent in the last hour, the network may still be processing it, wait and try again soon. If someone already used these words to claim it, the bitcoin has been moved. If neither fits, compare all 24 words against the card and try once more.';
+    $('showOut').textContent = 'We did not find any bitcoin on this card yet. Three things this can mean. One: it was funded in the last hour and the network is still working on it, so wait a little and tap Try again. Two: a word is typed slightly wrong, so compare both boxes with the card one word at a time. Three: the card was already claimed and the bitcoin has been moved. If you think that is what happened, whoever gave you the card can check what they sent and when.';
     $('retryBal').classList.remove('hide');
     $('sendSection').classList.add('hide');
     return;
@@ -91,7 +91,7 @@ async function checkClaimBalance(){
   const sp = document.createElement('span'); sp.className = 'ok';
   const pend = splitConfirmed(utxos).pend;
   sp.textContent = '✓ This card holds '+sats(total)+' sats ('+btcStr(total)+' BTC). Sats are the small unit of bitcoin, like cents to a dollar.'
-    + (pend > 0 ? ' Note: '+sats(pend)+' sats of this arrived very recently and the network is still confirming it. If you can, wait about an hour and check again before sending, the transfer goes smoother.' : '');
+    + (pend > 0 ? ' Note: '+sats(pend)+' sats of this only just arrived and the bitcoin network has not confirmed it yet. Until it does, that part can still fall through, and if you send now your payment has to wait behind it. Wait about an hour and check again. The bitcoin is not going anywhere.' : '');
   $('showOut').appendChild(sp);
   $('sendSection').classList.remove('hide');
 }
@@ -300,10 +300,10 @@ function init(){
         $('verifyWords').value = '';   // audit #11: do not keep the half on screen after it has been checked
         $('setupOut').textContent = '✓ Your 12 words are written on the card and verified. They were cleared from this screen for privacy; the card is now the only copy.';   // audit #11: the full word grid must not linger on screen
       }else{
-        log('verifyOut','✗ These do not match what is on the card. Re-check the 12 words, do NOT add bitcoin until they match.','bad');
+        log('verifyOut','These do not match the 12 words shown above. Nothing is broken and no bitcoin is at risk yet. Check two things: that you typed them in the same order, and that what you wrote on the card really is what is shown above. If the card is what is wrong, fix the card. Do not add any bitcoin until this says the words match.','bad');
         $('fundBox').classList.add('hide');
       }
-    }catch(e){ log('verifyOut','That does not look like 12 valid words yet.','bad'); }
+    }catch(e){ log('verifyOut','That is not 12 valid words yet. Type all 12, in order, with a space between each one.','bad'); }
   };
 
   $('arriveBtn').onclick = ()=> run('arriveBtn', async ()=>{
@@ -325,16 +325,16 @@ function init(){
   // ---------- CLAIM FLOW ----------
   $('showBtn').onclick = ()=> run('showBtn', async ()=>{
     // boxes are validated in on-screen order, which matches the card's top-to-bottom layout: sealed half first
-    const r1 = checkWords($('claimP1').value, 'top box');
+    const r1 = checkWords($('claimP1').value, 'scratched-off words');
     if(r1.err){ log('showOut', r1.err, 'bad'); return; }
-    const r2 = checkWords($('claimP2').value, 'bottom box');
+    const r2 = checkWords($('claimP2').value, 'handwritten words');
     if(r2.err){ log('showOut', r2.err, 'bad'); return; }
     let card;
     try{ card = loadCard(); }
     catch(e){ log('showOut','This card code is not valid. Re-scan the QR on the back of the card, then try again.','bad'); return; }   // audit: fail closed, never skip the pairing check
     // the QR commits the hidden half: catch a mispaired or misread panel deterministically
     if(hexlib.encode(pubOfScalar(halfScalar(r1.m))) !== card.P1hex){
-      log('showOut','The words from under the scratch panel do not match this card. Re-check the top box word by word.','bad');
+      log('showOut','The words from under the scratch panel do not match this card. Re-check the scratched-off words one at a time, and make sure the card code above belongs to the card you are holding.','bad');
       return;
     }
     try{
@@ -349,7 +349,7 @@ function init(){
   $('retryBal').onclick = ()=>{ if(claimState) checkClaimBalance(); };
 
   $('genDest').onclick = ()=>{
-    $('destOut').textContent = 'You need a wallet app first, it is free and takes about five minutes. Install a well known bitcoin wallet from your app store, open it, tap Receive, and copy the address it shows into the box above. No rush: the bitcoin stays on this card until you move it.';
+    $('destOut').textContent = 'You need a free wallet app to keep the bitcoin. It takes about five minutes. One caution: fake bitcoin wallets do exist in app stores, so before installing anything, check the app has a long history and many reviews, and prefer an open source wallet that other people you trust already use. Then open it, tap Receive, and copy the long address it shows into the box above. There is no rush at all: the bitcoin stays safe on this card until you move it, so you can close this page and come back another day.';
   };
 
   $('reviewBtn').onclick = ()=> run('reviewBtn', async ()=>{
@@ -366,10 +366,10 @@ function init(){
     $('claimOut').textContent =
       'Nothing has been sent yet. Here is the plan:\n\n'+
       'On the card: '+sats(s.total)+' sats\n'+
-      'Network fee: '+sats(s.fee)+' sats (set automatically from live network traffic so your payment goes through quickly; it pays the bitcoin network, not us)\n'+
+      'Network fee: '+sats(s.fee)+' sats (this goes to the bitcoin network, not to us. We set it from what the network is charging right now and lean to the cautious side. Fees are an estimate, not a promise: most payments confirm within an hour, some take longer, and a Speed it up button appears if yours is slow)\n'+
       'You receive: '+sats(s.send)+' sats ('+btcStr(s.send)+' BTC)\n\n'+
       'Going to:\n  '+s.txDest+'\n\n'+
-      'Bitcoin payments cannot be undone. Check the address, then tick the box.';
+      'Bitcoin payments cannot be undone, by us or by anyone. Check the address now: open your wallet app next to this page and make sure the first four characters and the last four characters match what your wallet shows. Then tick the box.';
     $('confirmRow').classList.remove('hide'); $('bcastBtn').classList.remove('hide');
   });
 
@@ -388,11 +388,13 @@ function init(){
     try{
       const r = await broadcastTx(lastRawTx, lastTxId);   // §5: node must echo the txid we computed
       const bo = $('bcastOut'); bo.textContent = '';
-      const bh = document.createElement('span'); bh.className = r.independent ? 'ok' : 'bad';
+      // 'pending' (neutral), not 'bad': the payment DID go through, we just could not double-check it.
+      // Red here reads as failure and scares people into thinking their money is lost.
+      const bh = document.createElement('span'); bh.className = r.independent ? 'ok' : 'pending';
       if(r.independent){   // host-aware: the accepting node alone can never vouch for its own broadcast
-        bh.textContent = '✓ Sent. Your bitcoin is on its way, it usually appears in your wallet within the hour, often within minutes. Keep the card and both sets of words until the bitcoin shows in your wallet, then keep the card as a keepsake.';
+        bh.textContent = '✓ Sent. Your payment is on its way. It should show in your wallet as pending within a few minutes, and it is only final once your wallet marks it confirmed, usually within the hour. Keep the card and both sets of words until you see it confirmed, not just pending. After that the card is spent for good: never send bitcoin to this card again, because anyone who has seen the opened card can take it.';
       }else{
-        bh.textContent = 'A server accepted the payment, but we could not independently confirm it landed on the network yet. Do NOT throw the card away. Keep the card and its words, check your wallet in a few minutes, and use the receipt below to look it up. If it does not appear, you can safely try again.';
+        bh.textContent = 'Your payment went through and is on its way. We could not double-check it with a second server, so we will not promise until you see it. Keep the card and both sets of words for now, and check your wallet app in about ten minutes. If nothing has arrived after an hour, come back to this page and send again. That is safe: the same bitcoin cannot be sent twice, so a second attempt cannot pay anyone twice.';
       }
       bo.appendChild(bh);
       bo.appendChild(document.createTextNode('\n\nReceipt (transaction id):\n'+r.txid+'\n\n'));
@@ -421,8 +423,8 @@ function init(){
       const r = await broadcastTx(s.rawTx, s.txid);
       lastRawTx = s.rawTx; lastTxId = s.txid; lastRate = s.rate;
       const bo = $('bumpOut'); bo.textContent = '';
-      const sp = document.createElement('span'); sp.className = r.independent ? 'ok' : 'bad';
-      sp.textContent = (r.independent ? '✓ Sped up. ' : 'Sent a faster version, still confirming. ') + 'New fee '+sats(s.fee)+' sats, you receive '+sats(s.send)+' sats. This replaces the earlier payment, only one of them can confirm.';
+      const sp = document.createElement('span'); sp.className = r.independent ? 'ok' : 'pending';
+      sp.textContent = (r.independent ? '✓ Done. ' : 'Sent a faster version, still confirming. ') + 'We asked the network to move things along by paying a larger fee. New fee '+sats(s.fee)+' sats, you receive '+sats(s.send)+' sats. This is still the same single payment, not a second one, so nothing can be paid twice.';
       bo.appendChild(sp);
       bo.appendChild(document.createTextNode('\n\nNew receipt (transaction id):\n'+s.txid+'\n\n'));
       const a = document.createElement('a'); a.href = ENDPOINTS.txExplorer +s.txid; a.textContent = 'Track the payment'; a.target = '_blank'; a.rel = 'noopener';
