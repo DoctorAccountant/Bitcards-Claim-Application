@@ -1,7 +1,6 @@
 {
-  "comment": "Expected SHA-256 of the LIVE deployed artifacts. SOP-4: update this file as part of every release, immediately after verifying the live hashes.",
+  "comment": "Expected SHA-256 of the LIVE deployed artifacts. Written by build/release-finish.mjs, which verifies each URL against the locally built file and refuses to write on any mismatch. Never edit by hand.",
   "updated": "2026-08-03",
-  "releaseCommit": "81f04b9",
   "artifacts": {
     "app.html": "1c00c12d64325a625c2691a8abb088848a4d0a78196273abe81b816b8c4974cd",
     "offline.html": "2974a8a314c698c726cfb2aae007a5d4709903b08b6c44b6d039b64b13be9cac"
@@ -11,5 +10,7 @@
     "https://bitcards.xyz/offline.html",
     "https://bitcards.vercel.app/app.html",
     "https://bitcards.vercel.app/offline.html"
-  ]
+  ],
+  "builtFromCommit": "9f0ac20",
+  "commitNote": "builtFromCommit is the commit whose tree produced these artifacts. The commit that CONTAINS this file is the one immediately after it (a file cannot embed its own commit hash). Both describe the same released bytes; verify with: git show 9f0ac20:build/core.js"
 }
