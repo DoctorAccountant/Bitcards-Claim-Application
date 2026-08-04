@@ -30,7 +30,7 @@ This is an **additive two-part key** (the two halves add to one ordinary key), n
 
 ```
 sha256 of app/claim-app.html:
-d88423061de3b77360635d44ba8466614c9e73c73379619a7831924ee55447b0
+263fb7e3b6be453323fdfeb886fc13577a310c728e6f900abb70acb1fa8cdff5
 sha256 of app/offline.html:
 7b4394cc230d194a911f8a241655b409ff74976b03f82ab5a00a97a031138a7c
 ```

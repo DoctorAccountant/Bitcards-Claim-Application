@@ -1,8 +1,8 @@
 {
   "comment": "Expected SHA-256 of the LIVE deployed artifacts. Written by build/release-finish.mjs, which verifies each URL against the locally built file and refuses to write on any mismatch. Never edit by hand.",
-  "updated": "2026-08-03",
+  "updated": "2026-08-04",
   "artifacts": {
-    "app.html": "d88423061de3b77360635d44ba8466614c9e73c73379619a7831924ee55447b0",
+    "app.html": "263fb7e3b6be453323fdfeb886fc13577a310c728e6f900abb70acb1fa8cdff5",
     "offline.html": "7b4394cc230d194a911f8a241655b409ff74976b03f82ab5a00a97a031138a7c"
   },
   "urls": [
@@ -11,6 +11,6 @@
     "https://bitcards.vercel.app/app.html",
     "https://bitcards.vercel.app/offline.html"
   ],
-  "builtFromCommit": "60cfc03",
-  "commitNote": "builtFromCommit is the commit whose tree produced these artifacts. The commit that CONTAINS this file is the one immediately after it (a file cannot embed its own commit hash). Both describe the same released bytes; verify with: git show 60cfc03:build/core.js"
+  "builtFromCommit": "1c885a0",
+  "commitNote": "builtFromCommit is the commit whose tree produced these artifacts. The commit that CONTAINS this file is the one immediately after it (a file cannot embed its own commit hash). Both describe the same released bytes; verify with: git show 1c885a0:build/core.js"
 }
