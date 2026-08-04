@@ -105,6 +105,13 @@ for (const f of ['app-claim.js', 'app-offline.js', 'mint-pilot-csv.mjs']) {
   ok('a generator returning the SAME draw every time is refused', throwsRng());
   ok('the stuck-draw case really was exercised (drew twice)', counter >= 2, 'drew ' + counter + ' times');
 
+  // Every stub above yields two IDENTICAL draws, so the equal-draws check alone catches them all and the
+  // constant-bytes check has no independent coverage: deleting it left this suite green. This stub returns
+  // a DIFFERENT constant each call, so the draws differ and only the constant check can reject it.
+  let step = 0;
+  stub(a => { a.fill(step++ & 255); return a; });
+  ok('a generator returning a DIFFERENT constant each draw is refused (isolates the constant check)', throwsRng());
+
   if (realGRV) globalThis.crypto.getRandomValues = realGRV;
   ok('the real generator still works after the stubs are removed', (() => { try { return newMnemonic().split(' ').length === 12; } catch (e) { return false; } })());
 }

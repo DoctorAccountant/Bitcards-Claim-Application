@@ -322,6 +322,28 @@ async function claimToReview(net){
   ok('swapped halves: says they are in the wrong boxes', /wrong boxes|swap/i.test(t), t.slice(0,160));
 }
 
+// ---------------- 4a2. A flooded card must explain the recovery path, not look like a network fault -------
+// The deposit address is public, so anyone can send hundreds of tiny payments to it. Past MAX_UTXOS the app
+// refuses to build a sweep, which is correct. What was wrong was the wording: the raw internal message
+// reached the customer, and on the balance path it was reported as a network failure, which sends someone
+// to check their wifi forever when the actual answer is the offline tool. The bitcoin is never lost here.
+{
+  const flood = Array.from({ length: 501 }, (_, i) => ({
+    txid: i.toString(16).padStart(64, '0'), vout: 0, value: 800, status: { confirmed: true }, scriptPubKey: CARD_SPK }));
+  const { els } = boot({ utxos: flood });
+  els.cardUri.value = CARD_VEC; els.cardUri.dispatch('input');
+  els.pathClaim.onclick();
+  els.claimP1.value = CLAIM_P1; els.claimP2.value = CLAIM_P2;
+  els.showBtn.onclick(); await tick(250);
+  const t = els.showOut.textContent;
+  ok('flooded card: does not claim the network is unreachable', !/could not reach the bitcoin network/i.test(t), t.slice(0,110));
+  ok('flooded card: says nothing was sent and the bitcoin is safe', /Nothing was sent/i.test(t) && /lost/i.test(t), t.slice(0,140));
+  ok('flooded card: points at the offline tool', /offline\.html/.test(t));
+  ok('flooded card: names a wallet that can sweep it', /Sparrow|Electrum/.test(t));
+  ok('flooded card: carries a support code', /UTXO-02/.test(t));
+  ok('flooded card: no raw internal wording leaks', !/toomanyinputs|refusing to sign/.test(t), t.slice(0,110));
+}
+
 // ---------------- 4b. CLAIM: a deposit arriving between Review and Send must not be left behind ----------
 // External review, 2026-08-03, principal blocker. Review builds a draft from a snapshot of the card's coins.
 // If another payment lands before Send, broadcasting the stale draft sweeps only the coins we knew about,

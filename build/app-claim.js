@@ -94,6 +94,10 @@ async function checkClaimBalance(){
   let utxos;
   try{ utxos = (await getUtxos(c.address)).utxos; }
   catch(e){
+    // a flooded card is NOT a network failure: saying so would send the customer to check their wifi
+    // forever while the real answer is the offline tool
+    const many = sweepErrText(e.message);
+    if(many){ $('showOut').textContent = many; $('retryBal').classList.add('hide'); return; }
     $('showOut').textContent = 'We could not reach the bitcoin network to check the balance. Nothing was sent. Both boxes held valid word sets and the scratch-panel words matched this card, though we cannot tell whether the handwritten words are the ones on your card until the network answers. This page still has your card open: check your internet connection, then tap Try again, you do not need to retype anything. [NET-01]';
     $('retryBal').classList.remove('hide');
     return;
@@ -176,6 +180,15 @@ const SWEEP_ERR = {
   destmismatch:'Safety check failed, the address did not match. Nothing was sent. Re-check your wallet address.',
   nofee:       'We could not check the current bitcoin network fee, so we stopped rather than guess. Nothing was sent, the bitcoin is still on the card. Try again in a few minutes [FEE-03].'
 };
+// A card's deposit address is public, so anyone can send it hundreds of tiny payments. Past our input
+// bound a single sweep would be enormous and its fee could exceed the gift, so we refuse to build it. The
+// bitcoin is NOT stuck: the offline tool needs no server and hands the key to a wallet that picks its own
+// inputs and fee. Raw internal wording used to reach the customer here with no way forward.
+function sweepErrText(msg){
+  const many = /^toomanyinputs:(\d+)/.exec(msg || '');
+  if(many) return 'This card has received an unusually large number of separate payments (' + many[1] + '), more than this page will combine into one. Nothing was sent and none of the bitcoin is lost. To move it, use the offline tool at bitcards.xyz/offline.html: it works out the card key on your own device and hands it to a wallet such as Sparrow or Electrum, which can sweep the payments and let you choose the fee [UTXO-02].';
+  return SWEEP_ERR[msg];
+}
 
 function init(){
   // must be first: a build that cannot reproduce the published reference card never gets to touch words
@@ -455,7 +468,7 @@ function init(){
     $('confirmRow').classList.add('hide'); $('bcastBtn').classList.add('hide'); $('bumpBtn').classList.add('hide');
     let s;
     try{ s = await buildSweep(claimState, dest, 0); }
-    catch(e){ log('claimOut', SWEEP_ERR[e.message] || ('Could not reach the network: '+e.message), 'bad'); return; }
+    catch(e){ log('claimOut', sweepErrText(e.message) || ('Could not reach the network: '+e.message), 'bad'); return; }
     lastRawTx = s.rawTx; lastTxId = s.txid; lastReviewedDest = dest; lastRate = s.rate; lastUtxos = s.utxos;
     if($('destConfirm')) $('destConfirm').checked = false;
     $('claimOut').textContent =
@@ -531,7 +544,7 @@ function init(){
     const minRate = Math.max(2, Math.ceil((lastRate||2) * 1.5) + 1);   // bid strictly above the last fee
     let s;
     try{ s = await buildSweep(claimState, lastReviewedDest, minRate, lastUtxos); }   // re-spend the SAME inputs (valid RBF replacement)
-    catch(e){ log('bumpOut', SWEEP_ERR[e.message] || ('Could not speed it up: '+e.message), 'bad'); return; }
+    catch(e){ log('bumpOut', sweepErrText(e.message) || ('Could not speed it up: '+e.message), 'bad'); return; }
     // a true replacement must differ; identical txid means the fee could not actually rise (e.g. clamped at the cap)
     if(!bumpEligible(lastRate, s.txid, lastTxId).ok){ log('bumpOut','The rebuilt payment came out identical, the fee could not go any higher. Nothing new was sent, the original payment is still on its way.','bad'); return; }
     try{

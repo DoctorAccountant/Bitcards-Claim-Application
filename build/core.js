@@ -34,7 +34,10 @@ export const isTxid = s => typeof s==='string' && /^[0-9a-fA-F]{64}$/.test(s.tri
 export const MAX_UTXOS = 500; // sanity bound on inputs a card can hold (also caps tx size / fee)
 export function validateUtxos(arr){ // §7: never trust node JSON shape; reject anything that could poison the tx build
   if(!Array.isArray(arr)) throw new Error('node returned a non-array UTXO set — refusing to sign');
-  if(arr.length > MAX_UTXOS) throw new Error('address has too many inputs ('+arr.length+') — refusing to sign');
+  // A card's deposit address is public, so anyone can send to it. Past this bound a sweep would be enormous
+  // and its fee would dwarf a normal gift, so we refuse rather than build it. The coins are NOT stuck: the
+  // offline tool needs no node and hands the key to a wallet that can choose its own inputs and fee.
+  if(arr.length > MAX_UTXOS) throw new Error('toomanyinputs:'+arr.length);
   const seen = new Set();
   for(const u of arr){
     if(!u || typeof u!=='object') throw new Error('malformed UTXO entry — refusing to sign');

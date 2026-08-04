@@ -216,5 +216,31 @@ const CARD_201 = 'AQABAQLfRDXIEvQOzzQua7XN1bX0GV4ADGLZhtcuHx0nACm7lgAAAMk';
   ok('open: word inputs cleared after reveal', els.p1.value === '' && els.p2.value === '');
 }
 
+// ---- 3b. OPEN mode: the Part 1 <-> QR pairing gate ----
+// Deleting this comparison in the offline tool left the whole suite green, because no test used a VALID
+// Part 1 belonging to a DIFFERENT card. Without it the tool would hand out a WIF for a key that does not
+// control the card in the user's hand, which is a wrong answer delivered with full confidence by the very
+// tool people are told to trust when nothing else is left.
+{
+  const { els } = run({ live: false });
+  els.cardUri.value = 'AQABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAABYAs';
+  els.cardUri.dispatch('input');
+  els.modeOpen.onclick();
+  els.p1.value = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';   // valid BIP39, wrong card
+  els.p2.value = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
+  els.revealBtn.onclick();
+  ok('open: a valid Part 1 from another card is REFUSED', /do not match this card/i.test(els.keyOut.textContent));
+  ok('open: no address is revealed for a mispaired card', els.outAddr.textContent === '');
+  ok('open: no WIF is revealed for a mispaired card', els.outWif.textContent === '');
+  ok('open: the result panel stays hidden', els.resultBox.classList.contains('hide'));
+  ok('open: the typed words survive so they can be corrected', els.p1.value !== '' && els.p2.value !== '');
+
+  // and the swapped-halves case: both valid, both belong to this card, but in the wrong boxes
+  els.p1.value = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
+  els.p2.value = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+  els.revealBtn.onclick();
+  ok('open: swapped halves are refused', els.outWif.textContent === '' && /do not match this card/i.test(els.keyOut.textContent));
+}
+
 console.log('\n' + (fail === 0 ? 'OFFLINE SMOKE OK (' + pass + ' passed)' : 'OFFLINE SMOKE FAILED (' + fail + ')'));
 process.exit(fail === 0 ? 0 : 1);

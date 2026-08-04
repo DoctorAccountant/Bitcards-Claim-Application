@@ -24,7 +24,17 @@ Thumbs.db
 build/node_modules/
 
 # NOTE, deliberately NOT ignored:
-#   app/*.html          the released artifacts themselves; their hashes are published in the README
-#   build/*.bundle.js   and build/claim-app.html, build/offline.html: the exact build outputs, kept so
-#                       anyone can diff a rebuild against what we shipped without trusting our word
+#   app/*.html               the released artifacts themselves; their hashes are published in the README
+#   build/template-*.html    source, not output
 #   build/package-lock.json  the exact dependency tree, which is what makes builds reproducible
+
+# Derived build outputs. These are NOT reproducible in-tree: they were committed once and went stale as the
+# source moved, so a rebuild always dirtied the working tree and a reader diffing them would be misled.
+# The authoritative artifacts are app/claim-app.html and app/offline.html, which ARE tracked and which a
+# clean clone reproduces byte-for-byte via the documented build.
+build/app-claim.bundle.js
+build/app-offline.bundle.js
+build/app-maker.bundle.js
+build/app-qc.bundle.js
+build/claim-app.html
+build/offline.html
