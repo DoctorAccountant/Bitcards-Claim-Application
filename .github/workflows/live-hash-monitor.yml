@@ -14,7 +14,15 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Read expected hashes from this private repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github.raw+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/contents/monitor/expected-hashes.json?ref=${GITHUB_SHA}" \
+            --output /tmp/bitcard-expected-hashes.json
 
       - name: Verify production and mirror bytes
         run: |
@@ -26,7 +34,7 @@ jobs:
               with urllib.request.urlopen(req, timeout=30) as response:
                   return response.read()
 
-          with open("monitor/expected-hashes.json", "r", encoding="utf-8") as handle:
+          with open("/tmp/bitcard-expected-hashes.json", "r", encoding="utf-8") as handle:
               cfg = json.load(handle)
           failures = []
           for url in cfg["urls"]:
