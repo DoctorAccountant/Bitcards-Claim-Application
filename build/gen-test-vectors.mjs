@@ -5,7 +5,7 @@
 // Vector 3 is the important addition. In vectors 1 and 2 d1+d2 is less than the curve order, so nothing in
 // this file ever exercised the "mod n" reduction, even though roughly half of all real cards need it.
 //
-// Run: node gen-test-vectors.mjs   (writes ../bitcard-test-vectors.json)
+// Run: node gen-test-vectors.mjs   (writes ../spec/bitcard-test-vectors.json)
 import { halfScalar, toWIF, buildRecord, parseAndVerifyCard, pubOfScalar, b64u } from './core.js';
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
 import * as btc from '@scure/btc-signer';
@@ -52,8 +52,28 @@ const out = {
   generatedBy: 'build/gen-test-vectors.mjs against build/core.js (@noble/curves, @scure/bip39, @scure/btc-signer). All values computed, none transcribed.',
   validatedOnChain: 'testnet tx d5245874007557429eb8e4267490e1190ed8ac37c763cad5934606a66cdfc96c, confirmed block 5013091 (real funded sweep of an aggregate P1+P2 address)',
   cardRecord: {
-    note: 'Cards carry NO issuer signature (open, permissionless standard). The QR payload is base64url(record) with nothing appended. Two record versions exist. v1(41) = version=1(1) | network(1) | scripttype(1) | kdf(1) | P1(33, compressed) | serial(4, uint32 BE). v2(46) = the same 41 bytes with version=2, followed by checksum(5) = the first 5 bytes of SHA-256 over those 41 bytes. v1 has NO integrity check: roughly 47% of single-character substitutions in a v1 card code still decode to a structurally valid record carrying a different valid key, so a hand-typed code can silently address funds to a key nobody holds. v2 closes that: a conformant parser MUST verify the checksum and reject on mismatch. v1 MUST remain accepted forever; v1 cards printed in 2026 are bearer instruments.',
-    recordHexExample: '0101010103d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee049400000001',
+    note: 'Cards carry NO issuer signature (open, permissionless standard). The QR payload is base64url(record) with nothing appended. Two record versions exist. v1(41) = version=1(1) | network(1) | scripttype(1) | kdf(1) | P1(33, compressed) | serial(4, uint32 BE). v2(46) = the same 41 bytes with version=2, followed by checksum(5) = the first 5 bytes of SHA-256 over those 41 bytes. v1 has NO integrity check: a single-character substitution can decode to a structurally valid different key and serial. v2 closes that accidental-corruption path: a conformant parser MUST verify the checksum and reject on mismatch. Claim/recovery parsers retain v1 compatibility while issued v1 bearer instruments exist; official Setup/Give refuses unknown or mismatched v1 records.',
+    recordV1Testnet: {
+      note: 'Historical labelled testnet example. A mainnet-only parser is expected to reject its network byte.',
+      recordHex: '0101010103d902f35f560e0470c63313c7369168d9d7df2d49bf295fd9fb7cb109ccee049400000001',
+      expectInMainnetBuild: 'reject-network-mismatch'
+    },
+    recordV1Mainnet: (() => {
+      // Reserved, never-minted serial. This gives implementers a v1 example that a mainnet parser must accept.
+      const SERIAL = 4294967122;
+      const P1 = pubOfScalar(halfScalar(M.abandon));
+      const rec = buildRecord(P1, SERIAL).slice(0, 41);
+      rec[0] = 0x01;
+      const b = b64u.encode(rec);
+      const chk = parseAndVerifyCard('bitcard:' + b);
+      if (chk.serial !== SERIAL || chk.version !== 1) throw new Error('v1 mainnet vector does not round-trip');
+      return {
+        note: 'Same P1 as vector 1 part1, mainnet network byte, and reserved never-minted serial 4294967122.',
+        recordHex: hex.encode(rec),
+        cardURI: 'bitcard:' + b,
+        expect: 'accept'
+      };
+    })(),
     recordV2: (() => {
       // serial from the RESERVED range (>= 4294000000, never minted): a published example must not
       // collide with a real card, or pasting it into the live app trips the known-batch check
@@ -87,7 +107,7 @@ const out = {
   ]
 };
 
-const path = new URL('../bitcard-test-vectors.json', import.meta.url);
+const path = new URL('../spec/bitcard-test-vectors.json', import.meta.url);
 writeFileSync(path, JSON.stringify(out, null, 2) + '\n');
 console.log('wrote ' + out.vectors.length + ' vectors');
 for (const v of out.vectors) console.log('  reduced=' + String(v.reducedModN).padEnd(5) + ' ' + v.addressMainnet);

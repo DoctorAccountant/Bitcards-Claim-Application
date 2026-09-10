@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "policy": "Every production mint requires an exact reserved-for-mint range committed before key generation. Allocated and permanently-reserved serials are never reused.",
+  "ranges": [
+    {
+      "start": 1,
+      "end": 4,
+      "state": "allocated",
+      "purpose": "retired internal test cards"
+    },
+    {
+      "start": 5,
+      "end": 100,
+      "state": "permanently-reserved",
+      "purpose": "retired pre-production range"
+    },
+    {
+      "start": 101,
+      "end": 400,
+      "state": "allocated",
+      "purpose": "2026 pilot production, record v1, SKU BTC-ORG-B001"
+    },
+    {
+      "start": 401,
+      "end": 999,
+      "state": "permanently-reserved",
+      "purpose": "documented gap including burned proof card 999; never mint"
+    },
+    {
+      "start": 1000,
+      "end": 1299,
+      "state": "allocated",
+      "purpose": "production batch 2, record v2, SKU BTC-ORG-B002"
+    }
+  ]
+}

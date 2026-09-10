@@ -4,7 +4,7 @@
 // Usage:  node mint-pilot-csv.mjs [count=100] [startSerial=101] [outDir]
 // Default outDir = C:\Users\<you>\bitcard-mint  (a sibling of OneDrive, NOT synced).
 //
-// This script prints ONLY counts, checksums, and a words-masked sample â€” the mnemonics never touch stdout.
+// This script prints ONLY counts, checksums, and a words-masked sample; the mnemonics never touch stdout.
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
 import { hmac } from '@noble/hashes/hmac';
 import { sha512 } from '@noble/hashes/sha512';
@@ -12,10 +12,11 @@ import { utf8ToBytes } from '@noble/hashes/utils';
 import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 import { hex, base64urlnopad as b64u } from '@scure/base';
-import { writeFileSync, mkdirSync, existsSync, readdirSync, readFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readdirSync, readFileSync, unlinkSync, renameSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { NET } from './config.js';
 // derivation AND record construction come from the ONE audited implementation, never a private copy: a
 // divergence between mint and the claim app would mint cards that fund normally and cannot be opened.
@@ -69,7 +70,7 @@ if (START + COUNT - 1 >= 4294000000) { console.error('REFUSING: serials >= 42940
     if(START <= s.end && START + COUNT - 1 >= s.start){
       console.error('REFUSING: serials ' + START + '-' + (START + COUNT - 1) + ' overlap serials ' + s.start + '-' + s.end +
         ' which are already minted and published in the shipped card table.\n' +
-        'Serial ranges are never reused. Take the next free serial from serial-ledger.md.');
+        'Serial ranges are never reused. Reserve the exact next range in build/serial-allocations.json and commit it before minting.');
       process.exit(1);
     }
   }
@@ -100,6 +101,58 @@ for(const f of readdirSync(OUT_DIR)){
   }
 }
 
+// --- global allocation ledger: the exact range must be reserved BEFORE any secret is generated ---
+// A scan of the output folder cannot coordinate another folder or machine. The public, versioned ledger
+// is the coordination point. BITCARD_SERIAL_LEDGER exists for isolated regression tests and alternate
+// checked-out release roots; using a different ledger intentionally is equivalent to editing this source.
+const LEDGER_PATH = process.env.BITCARD_SERIAL_LEDGER
+  ? path.resolve(process.env.BITCARD_SERIAL_LEDGER)
+  : fileURLToPath(new URL('./serial-allocations.json', import.meta.url));
+const csvPath = path.join(OUT_DIR, 'bitcard-pilot-'+START+'-'+wantHi+'.csv');
+const manPath = path.join(OUT_DIR, 'bitcard-pilot-'+START+'-'+wantHi+'-QC-manifest.json');
+if(existsSync(csvPath) || existsSync(manPath)){
+  console.error('REFUSING: this batch already has an output file; nothing was generated'); process.exit(1);
+}
+// Serialize the read/validate/allocate transition. Two commands launched together must not both observe
+// reserved-for-mint and generate different keys under the same serials. A crash may leave the .lock file;
+// that fails closed and requires an operator to inspect the ledger/output before removing it.
+const LOCK_PATH = LEDGER_PATH + '.lock';
+try{ writeFileSync(LOCK_PATH, JSON.stringify({pid:process.pid, started:new Date().toISOString(), range:[wantLo,wantHi]})+'\n', {flag:'wx'}); }
+catch(e){ console.error('REFUSING: the serial ledger is locked by another mint or an interrupted run: '+LOCK_PATH+'\nInspect that run before removing the lock.'); process.exit(1); }
+let allocationError = null, nextPath = null;
+try{
+  let ledger;
+  try{ ledger = JSON.parse(readFileSync(LEDGER_PATH, 'utf8')); }
+  catch(e){ throw new Error('cannot read the versioned serial allocation ledger: '+LEDGER_PATH); }
+  if(!ledger || ledger.schema !== 1 || !Array.isArray(ledger.ranges)) throw new Error('serial allocation ledger has an unsupported format');
+  const ranges = [...ledger.ranges].sort((a,b)=>a.start-b.start);
+  for(let i=0;i<ranges.length;i++){
+    const r = ranges[i];
+    if(!Number.isSafeInteger(r.start) || !Number.isSafeInteger(r.end) || r.start < 1 || r.end < r.start ||
+       !['allocated','permanently-reserved','reserved-for-mint'].includes(r.state)) throw new Error('invalid serial ledger entry at index '+i);
+    if(i && ranges[i-1].end >= r.start) throw new Error('overlapping serial ranges inside the allocation ledger');
+  }
+  const reservation = ranges.find(r => r.start === wantLo && r.end === wantHi && r.state === 'reserved-for-mint');
+  if(!reservation){
+    const collision = ranges.find(r => wantLo <= r.end && wantHi >= r.start);
+    throw new Error(collision
+      ? 'serials '+wantLo+'-'+wantHi+' overlap ledger range '+collision.start+'-'+collision.end+' ('+collision.state+').'
+      : 'serials '+wantLo+'-'+wantHi+' are not pre-reserved in build/serial-allocations.json. Reserve the exact range and commit that reservation before minting.');
+  }
+  // Allocate BEFORE generating. A later power/RNG failure burns the range rather than making it reusable.
+  reservation.state = 'allocated';
+  reservation.lockedAt = new Date().toISOString();
+  reservation.note = (reservation.note ? reservation.note+'; ' : '') + 'locked by mint-pilot-csv before key generation';
+  nextPath = LEDGER_PATH + '.next-' + process.pid;
+  writeFileSync(nextPath, JSON.stringify(ledger, null, 2)+'\n', {encoding:'utf8', flag:'wx'});
+  renameSync(nextPath, LEDGER_PATH); nextPath = null; // same-directory atomic replacement
+}catch(e){ allocationError = e; }
+finally{
+  if(nextPath){ try{ unlinkSync(nextPath); }catch(e){} }
+  try{ unlinkSync(LOCK_PATH); }catch(e){}
+}
+if(allocationError){ console.error('REFUSING: '+allocationError.message); process.exit(1); }
+
 // --- mint ---
 const cards = [];
 for(let i=0;i<COUNT;i++) cards.push(mint(START + i));
@@ -126,12 +179,10 @@ if(p1s.size !== COUNT){ console.error('REFUSING: duplicate card keys generated (
 const header = ['serial', ...Array.from({length:12},(_,i)=>'word_'+(i+1)), 'qr_url'].join(',');
 const rows = cards.map(c => [c.serial, ...c.words, c.qrUrl].join(','));
 const csv = header + '\r\n' + rows.join('\r\n') + '\r\n';
-const csvPath = path.join(OUT_DIR, 'bitcard-pilot-'+START+'-'+(START+COUNT-1)+'.csv');
 writeFileSync(csvPath, csv, { flag: 'wx' });   // exclusive: never overwrite an existing batch file
 
 // --- public QC manifest (NO words) so you can verify printed cards later; safe to keep anywhere ---
 const manifest = { network: NET.label, appUrl: APP_URL, count: COUNT, cards: cards.map(c => ({ serial:c.serial, p1Hex:c.p1Hex, recordB64:c.recordB64, qrUrl:c.qrUrl })) };
-const manPath = path.join(OUT_DIR, 'bitcard-pilot-'+START+'-'+(START+COUNT-1)+'-QC-manifest.json');
 writeFileSync(manPath, JSON.stringify(manifest, null, 2), { flag: 'wx' });
 
 // --- handling note ---

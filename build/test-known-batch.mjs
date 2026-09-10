@@ -8,15 +8,44 @@
 import { knownCardStatus, parseAndVerifyCard, normCardInput, buildRecord, pubOfScalar, halfScalar, hexlib, b64u } from './core.js';
 import { KNOWN_BATCH } from './known-batch.js';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { c ? pass++ : (fail++, console.log('FAIL: ' + n + (d !== undefined ? '\n      ' + d : ''))); };
+const CARD_101 = 'AQABAQNeyFBDvBKLzkvd64SOllZZHCuKXg4IsZ9iuQLKISgIOwAAAGU';
+const CARD_101_BOUNDARY_MUTATION = 'AQABAQNeyFBDvBKLzkvd64SOllZZHCuKXg4IsZ9iuQLKISgIOBAAAGU';
 
 ok('the table has at least one segment', Array.isArray(KNOWN_BATCH.segments) && KNOWN_BATCH.segments.length > 0);
 for (const s of (KNOWN_BATCH.segments || [])) {
   const len = (() => { try { return Buffer.from(s.hashes, 'base64').length; } catch (e) { return -1; } })();
   ok('segment ' + s.start + '-' + s.end + ' blob matches its serial count',
      len === (s.end - s.start + 1) * KNOWN_BATCH.trunc, 'blob ' + len + ' bytes');
+}
+
+// The 300 printed v1 cards are a permanent compatibility obligation. Pin the exact public table bytes so
+// an empty, truncated, or accidentally regenerated table cannot turn all issued cards into UNKNOWN while
+// a shape-only test stays green. Future v2 cards do not depend on this table.
+{
+  const legacy = (KNOWN_BATCH.segments || []).find(s => s.start === 101 && s.end === 400);
+  const blob = legacy ? Buffer.from(legacy.hashes, 'base64') : Buffer.alloc(0);
+  ok('legacy v1 table uses the frozen five-byte entries', KNOWN_BATCH.trunc === 5);
+  ok('legacy v1 table covers exactly issued serials 101-400', !!legacy);
+  ok('legacy v1 table has exactly 300 entries', blob.length === 1500, 'blob ' + blob.length + ' bytes');
+  ok('legacy v1 table bytes match the frozen issued batch',
+     createHash('sha256').update(blob).digest('hex') === '4c24f56a1f3d45036cfce9f2e62b66755b34a84f161a48dd10c840892a2332a1');
+}
+
+// Frozen reproduction from the independent review: one base64url substitution changes both P1 and serial,
+// escaping the known serial range. The table must call this UNKNOWN (not "caught as a mismatch"), while the
+// official funding policy refuses it. Claim/recovery remains available so old third-party v1 cards are not bricked.
+{
+  const original = parseAndVerifyCard('bitcard:' + CARD_101);
+  const changed = parseAndVerifyCard('bitcard:' + CARD_101_BOUNDARY_MUTATION);
+  ok('boundary fixture starts as an issued v1 card', knownCardStatus(original.P1hex, original.serial) === 'ok');
+  ok('one-character boundary fixture changes the key', changed.P1hex !== original.P1hex);
+  ok('one-character boundary fixture changes the serial', changed.serial !== original.serial);
+  ok('boundary escape is honestly classified UNKNOWN', knownCardStatus(changed.P1hex, changed.serial) === 'unknown');
+  ok('boundary escape is refused for funding', !(changed.version !== 1 || knownCardStatus(changed.P1hex, changed.serial) === 'ok'));
 }
 // segments must be sorted and non-overlapping, or a serial could resolve to the wrong card's hash
 {
@@ -49,7 +78,7 @@ if (man) {
   ok('a prefix-flipped key on a real serial is REJECTED', knownCardStatus(flipped, c0.serial) === 'mismatch');
 
   // and a single-character corruption of the actual card code, end to end through the parser
-  let caught = 0, parsedAsValid = 0;
+  let refusedForFunding = 0, mismatches = 0, unknowns = 0, parsedAsValid = 0;
   const url = c0.qrUrl;
   const frag = url.slice(url.lastIndexOf('#') + 1);
   const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -59,26 +88,39 @@ if (man) {
       const bad = frag.slice(0, i) + ch + frag.slice(i + 1);
       let p; try { p = parseAndVerifyCard(normCardInput('bitcard:' + bad)); } catch (e) { continue; }
       parsedAsValid++;                                   // the record survived: this is the dangerous set
-      if (knownCardStatus(p.P1hex, p.serial) !== 'ok') caught++;
+      const status = knownCardStatus(p.P1hex, p.serial);
+      if (status === 'mismatch') mismatches++;
+      if (status === 'unknown') unknowns++;
+      // This is the source-level policy. The UI suite independently drives the production bundle and proves
+      // the same policy is enforced at every Setup/Give entry point, so this test cannot substitute for it.
+      if (p.version !== 1 || status === 'ok') { /* eligible */ } else refusedForFunding++;
     }
   }
-  ok('single-char corruptions that still parse are all caught (' + caught + '/' + parsedAsValid + ')',
-     parsedAsValid > 0 && caught === parsedAsValid, (parsedAsValid - caught) + ' would have slipped through');
+  ok('single-char corruptions that still parse are all ineligible for funding (' + refusedForFunding + '/' + parsedAsValid + ')',
+     parsedAsValid > 0 && refusedForFunding === parsedAsValid, (parsedAsValid - refusedForFunding) + ' would be eligible');
+  ok('the test records boundary escapes as UNKNOWN instead of pretending the table caught them', unknowns > 0,
+     'no unknown mutations were observed; this no longer exercises the boundary condition');
   console.log('  note: ' + parsedAsValid + ' of ' + (frag.length * 63) +
-              ' single-character corruptions decoded as a structurally valid card; all are now rejected');
+              ' substitutions parsed: ' + mismatches + ' known-serial mismatches, ' + unknowns +
+              ' boundary escapes. Both are refused for funding; unknown v1 remains claimable for recovery.');
 } else {
   console.log('  (no minted manifest on this machine; skipping the real-batch assertions)');
 }
 
-// ---- serials outside the range must still work: this is an open standard, not a permission slip ----
+// ---- Unknown v1 remains parseable/claimable for the open standard, but the official reference apps must not
+// use it to create a NEW funding address because v1 has no checksum and the table cannot distinguish a boundary
+// typo from a third-party card. Future third-party cards should use v2. ----
 {
   const d = halfScalar('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
   const P1 = pubOfScalar(d);
   const segs = KNOWN_BATCH.segments;
   const outside = Math.max(...segs.map(s => s.end)) + 5000;
-  const uri = 'bitcard:' + b64u.encode(buildRecord(P1, outside));
+  const v1 = buildRecord(P1, outside).slice(0, 41); v1[0] = 0x01;
+  const uri = 'bitcard:' + b64u.encode(v1);
   const p = parseAndVerifyCard(uri);
   ok('a card outside our minted range is UNKNOWN, not rejected', knownCardStatus(p.P1hex, p.serial) === 'unknown');
+  ok('an unknown v1 card is not eligible for official-app funding',
+     !(p.version !== 1 || knownCardStatus(p.P1hex, p.serial) === 'ok'));
   // The GAP between two allocated batches is the case a single-range table got wrong: a serial there must
   // be unknown, never silently indexed into a neighbouring batch's hashes.
   if (segs.length > 1) {

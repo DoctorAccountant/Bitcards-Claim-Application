@@ -27,7 +27,7 @@
 <body>
 <div class="wrap">
   <h1>Recover a Bitcard</h1>
-  <p class="lede">Your bitcoin is recoverable with standard tools <b>forever</b>, even if Bitcard, its app, and this website no longer exist. This page tells you how, and lets you verify any tool you use.</p>
+  <p class="lede">Your two word-halves contain everything needed to reconstruct the Bitcard key without Bitcard, its app, or its website. Preserve this page, the open specification and the tested recovery tools with the card.</p>
 
   <div class="warn">
     <p><b>Read this first.</b> A Bitcard uses <b>two</b> sets of 12 words, Part&nbsp;1 (under the scratch/seal on the card) and Part&nbsp;2 (written on the card). <b>These are NOT a normal wallet seed.</b> Typed into an ordinary wallet app they will show an empty, wrong wallet. You must <b>combine both halves</b> the Bitcard way (below) to get the real key. If a wallet shows nothing, the card is not empty, you are using the wrong method.</p>
@@ -37,20 +37,20 @@
   <div class="card">
     <p><b>Part 1</b>, 12 words hidden under the scratch panel on the card (peel it).<br>
        <b>Part 2</b>, 12 words handwritten on the card by the buyer.</p>
-    <p>You need <b>both</b>. Either half alone cannot spend, reveal the balance, or even compute the address.</p>
+    <p>You need <b>both</b> to spend. Part 1 alone cannot compute the address. Part 2 can compute the address and view its public balance only when combined with the public P1 from the card's QR; it still cannot spend.</p>
   </div>
 
   <h2>Three ways to recover, easiest first</h2>
   <div class="card">
-    <p><span class="step">1. The Bitcard app (easiest).</span> Open the claim app, enter both halves, and it sweeps the coins to a wallet you choose. The app is open-source and runs offline. If it is still online, this is all you need.</p>
-    <p><span class="step">2. The offline script (no app, no website).</span> Run <code>bitcard-recover.py</code> (kept alongside this page). It uses only the Python standard library, no installs, validates your words, and prints the address and the private key (WIF):</p>
+    <p><span class="step">1. The Bitcard claim app (easiest while available).</span> Open the genuine claim app, enter both halves, and it sweeps the coins to a wallet you choose. The saved app is self-contained, but claiming still needs network access to find and broadcast the bitcoin transaction.</p>
+    <p><span class="step">2. The offline script (no app, no website).</span> With Python 3.7 or newer, run <code>bitcard-recover.py</code> (kept alongside this page). It uses only the Python standard library, no package installs, validates your words, and prints the address and private key (WIF). Always run its self-test on the exact interpreter first:</p>
     <pre>python bitcard-recover.py --selftest        # confirms the tool is correct
 python bitcard-recover.py                    # then paste each half when prompted (mainnet by default; add --testnet for a tb1 card)</pre>
-    <p>Take the printed <b>WIF</b> and use your wallet's <b>Sweep</b> feature (Electrum/Sparrow: "Sweep"), not "Import", so the coins move to a fresh key you control. A Bitcard key is a one-time bearer key: do not keep or reuse it.</p>
-    <p><span class="step">3. From scratch (if even the script is gone).</span> Any programmer can reproduce the key from the algorithm below with any Bitcoin library. This is why the coins can never be locked away by us disappearing.</p>
+    <p>Take the printed <b>WIF</b> and use your wallet's <b>Sweep</b> feature, not "Import". In <b>Sparrow</b>, select <b>P2WPKH / Native SegWit</b> as the source type. In <b>Electrum</b>, enter <code>p2wpkh:</code> immediately before the WIF in Wallet &gt; Private Keys &gt; Sweep. Before confirming, the wallet's source address must exactly equal the funding address printed by this tool. Keep both halves until the sweep confirms and that address shows zero balance.</p>
+    <p><span class="step">3. From scratch (if even the script is gone).</span> A programmer can reproduce the key from the frozen algorithm and test vectors below. This is why Bitcard infrastructure is not required, provided the words and recovery materials remain available and usable.</p>
   </div>
 
-  <h2>The algorithm (bitcard-claim-spec v0.3)</h2>
+  <h2>The algorithm (bitcard-claim-spec v0.4)</h2>
   <div class="card">
     <pre>curve      = secp256k1  (order n)
 for each half (Part 1, Part 2):
@@ -71,7 +71,7 @@ Part 2:  legal winner thank year wave sausage worth useful legal winner thank ye
     private key (hex):  968eaeb422670fce07c620c22d7d41204ef45a104cb8e4a7e64e41791ad135b5</pre>
   </div>
 
-  <p class="foot"><b>This is one copy of an open standard, it does not need to stay online to work.</b> The method above, the spec (<code>bitcard-claim-spec.md</code>), the frozen vectors (<code>bitcard-test-vectors.json</code>), and <code>bitcard-recover.py</code> are open-source and mirrored (public code repositories + content-addressed storage such as IPFS / Arweave), so recovery survives without any single website, domain, or company, including us. Recovery needs only your words, the method above, and any Bitcoin tool; nothing on your card depends on a site we keep alive. Bitcard never holds your keys or your coins.</p>
+  <p class="foot"><b>This is one copy of an open standard; it does not need to stay online to work.</b> Preserve redundant, hash-verified copies of this page, the specification, vectors and <code>bitcard-recover.py</code> in public repositories and content-addressed storage. Recovery does not require a Bitcard service, but it does require the words, these method details and compatible software. Bitcard never holds your keys or your coins.</p>
 </div>
 </body>
 </html>

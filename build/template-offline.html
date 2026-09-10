@@ -158,8 +158,10 @@
       <ol>
         <li>Open a trusted wallet: <b>Sparrow</b> or <b>Electrum</b> (free, well known).</li>
         <li>Use its <b>Sweep</b> feature. Do NOT use "Import".</li>
-        <li>Paste the private key above, choose your own wallet as the destination, and send.</li>
-        <li>The wallet shows you the address, amount and fee before you confirm.</li>
+        <li><b>Sparrow:</b> select <b>P2WPKH / Native SegWit</b> as the source script type, then paste the private key.</li>
+        <li><b>Electrum:</b> in Wallet &gt; Private Keys &gt; Sweep, paste <b>p2wpkh:</b> immediately before the private key (for example <code>p2wpkh:L...</code>).</li>
+        <li>Before confirming, require the wallet's <b>source address</b> to exactly match the funding address shown above. Then choose your own wallet as the destination and review the amount and fee.</li>
+        <li>Keep both word halves until the sweep is confirmed and the funding address above shows zero balance.</li>
       </ol>
       This card is a one-time key. After you sweep it, keep the card as a keepsake but do not reuse the key.
     </div>

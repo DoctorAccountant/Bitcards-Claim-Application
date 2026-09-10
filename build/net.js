@@ -4,13 +4,49 @@ import { isTxid, validateUtxos } from './core.js';
 import { ENDPOINTS } from './endpoints.js';
 
 export const FETCH_TIMEOUT = 15000; // ms; a hung node must not freeze the app forever (§9)
-export async function fetchWithTimeout(url, opts){
+export const MAX_RESPONSE_BYTES = 1024 * 1024; // public APIs should never need a megabyte for these calls
+export async function fetchWithTimeout(url, opts, consume, timeoutMs = FETCH_TIMEOUT){
   const ac = new AbortController();
-  const t = setTimeout(()=>ac.abort(), FETCH_TIMEOUT);
-  try{ return await fetch(url, Object.assign({}, opts, { signal: ac.signal })); }
+  const t = setTimeout(()=>ac.abort(), timeoutMs);
+  try{
+    const response = await fetch(url, Object.assign({}, opts, { signal: ac.signal }));
+    // The deadline belongs to the COMPLETE operation. Returning at headers and clearing the timer lets a
+    // hostile node keep response.text()/json() pending forever. Consumers therefore run under this timer.
+    return consume ? await consume(response) : response;
+  }
   finally{ clearTimeout(t); }
 }
-export async function fetchJSON(base, path){ const r = await fetchWithTimeout(base+path); if(!r.ok) throw new Error('http '+r.status); return r.json(); }
+export async function responseText(r){
+  const declared = Number(r.headers && r.headers.get && r.headers.get('content-length'));
+  if(Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) throw new Error('response too large');
+  // Enforce the cap while reading chunked/lengthless responses too. Calling response.text() first and
+  // measuring afterwards still lets a hostile node allocate an arbitrarily large string in the page.
+  if(r.body && typeof r.body.getReader === 'function'){
+    const reader = r.body.getReader(), decoder = new TextDecoder();
+    let total = 0, text = '';
+    try{
+      for(;;){
+        const {done,value} = await reader.read(); if(done) break;
+        total += value.byteLength;
+        if(total > MAX_RESPONSE_BYTES){ try{ await reader.cancel(); }catch(e){} throw new Error('response too large'); }
+        text += decoder.decode(value, {stream:true});
+      }
+      return text + decoder.decode();
+    }finally{ try{ reader.releaseLock(); }catch(e){} }
+  }
+  const text = await r.text();
+  if(new TextEncoder().encode(text).length > MAX_RESPONSE_BYTES) throw new Error('response too large');
+  return text;
+}
+export async function fetchJSON(base, path){
+  return fetchWithTimeout(base+path, undefined, async r => {
+    if(!r.ok) throw new Error('http '+r.status);
+    // Test doubles may expose json() only; awaiting it here still keeps the same abort deadline active.
+    if(typeof r.text !== 'function') return r.json();
+    const text = await responseText(r);
+    try{ return JSON.parse(text); }catch(e){ throw new Error('invalid json'); }
+  });
+}
 
 export async function getUtxos(addr){ // §7: require ALL nodes to respond, pass schema validation, AND agree before signing
   const NODES = ENDPOINTS.nodes;
@@ -50,8 +86,8 @@ export async function feeRate(){
 export async function broadcastTx(raw, expectedTxid){ // §7: post to ALL nodes; a node "accepts" only if it echoes the txid WE computed (a lying node cannot fake success)
   const NODES = ENDPOINTS.nodes;
   const res = await Promise.allSettled(NODES.map(async b => {
-    const r = await fetchWithTimeout(b+'/tx',{method:'POST',body:raw});
-    const t = ((await r.text())||'').trim();
+    const out = await fetchWithTimeout(b+'/tx',{method:'POST',body:raw}, async r => ({ r, text:await responseText(r) }));
+    const r = out.r, t = (out.text||'').trim();
     if(!r.ok) throw new Error(t || ('http '+r.status));
     if(!isTxid(t)) throw new Error('unexpected response (not a txid): '+t.slice(0,80));
     if(expectedTxid && t.toLowerCase() !== String(expectedTxid).toLowerCase()) throw new Error('node returned a different txid than the transaction we signed');

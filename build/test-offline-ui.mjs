@@ -61,6 +61,7 @@ const ok = (name, cond) => { cond ? pass++ : (fail++, console.log('FAIL: ' + nam
 
 const CARD_101 = 'AQABAQNeyFBDvBKLzkvd64SOllZZHCuKXg4IsZ9iuQLKISgIOwAAAGU';
 const CARD_201 = 'AQABAQLfRDXIEvQOzzQua7XN1bX0GV4ADGLZhtcuHx0nACm7lgAAAMk';
+const CARD_101_BOUNDARY_MUTATION = 'AQABAQNeyFBDvBKLzkvd64SOllZZHCuKXg4IsZ9iuQLKISgIOBAAAGU';
 
 // ---- 1. LIVE (https) must refuse to generate or reveal anything ----
 {
@@ -75,6 +76,19 @@ const CARD_201 = 'AQABAQLfRDXIEvQOzzQua7XN1bX0GV4ADGLZhtcuHx0nACm7lgAAAMk';
   if (els.genBtn.onclick) els.genBtn.onclick();
   ok('live: forced generate produces NO words', els.outWords.textContent === '');
   ok('live: forced generate produces NO address', els.outSetupAddr.textContent === '');
+}
+
+// ---- 2a. An altered issued v1 record that escapes the serial ranges may be recovered, never funded ----
+{
+  const { els } = run({ live:false });
+  els.cardUri.value = CARD_101_BOUNDARY_MUTATION; els.cardUri.dispatch('input');
+  ok('unknown v1: Setup mode is disabled', els.modeSetup.disabled);
+  ok('unknown v1: warning says not to add bitcoin', /Do not add bitcoin|will not create a funding address/i.test(els.cardStatus.textContent));
+  els.modeSetup.onclick();
+  ok('unknown v1: forced Setup handler does not open setup', els.setupCard.classList.contains('hide'));
+  els.genBtn.onclick();
+  ok('unknown v1: forced Generate emits no words or address', els.outWords.textContent === '' && els.outSetupAddr.textContent === '');
+  ok('unknown v1: Open remains available for recovery', !els.modeOpen.disabled);
 }
 
 // ---- 2. FILE (offline) unlocks and the setup fix works ----
@@ -199,6 +213,23 @@ const CARD_201 = 'AQABAQLfRDXIEvQOzzQua7XN1bX0GV4ADGLZhtcuHx0nACm7lgAAAMk';
   ok('hash switch: previous deposit address cleared', els.outSetupAddr.textContent === '');
   ok('hash switch: setup panel hidden', els.setupResult.classList.contains('hide'));
   ok('hash switch: address panel hidden', els.addrBox.classList.contains('hide'));
+}
+
+// ---- 3. OPEN mode still works (regression) ----
+// Card changes must clear typed halves even before Reveal; clearing only a produced WIF is too late.
+{
+  const { els, win } = run({ live:false });
+  els.cardUri.value = CARD_101; els.cardUri.dispatch('input');
+  els.modeOpen.onclick();
+  els.p1.value = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+  els.p2.value = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
+  els.cardUri.value = CARD_201; els.cardUri.dispatch('input');
+  ok('open input card change clears both typed secret halves', els.p1.value === '' && els.p2.value === '');
+  els.modeOpen.onclick();
+  els.p1.value = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+  els.p2.value = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
+  globalThis.location.hash = '#' + CARD_101; win.dispatch('hashchange');
+  ok('open fragment change clears both typed secret halves', els.p1.value === '' && els.p2.value === '');
 }
 
 // ---- 3. OPEN mode still works (regression) ----

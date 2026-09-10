@@ -66,6 +66,7 @@ let stateCard = null;  // P1hex the current setup/claimState belongs to; a card 
 let lastRate = null;   // sat/vB used for the last sweep, so "speed up" can bid strictly higher (RBF)
 let lastUtxos = null;  // the exact inputs the reviewed sweep spends; an RBF bump must re-spend THESE (mempool marks them spent)
 let busy = false;      // single in-flight guard: blocks double-clicks and concurrent sign/broadcast
+let contextGeneration = 0; // incremented whenever card/flow/destination context is abandoned; invalidates every pending await
 
 // Fail CLOSED here, not merely by disabling the route buttons. Hiding a button is presentation; every flow
 // in this file goes through loadCard, so a card code that does not match the card we printed with that
@@ -74,6 +75,17 @@ function loadCard(){
   const c = parseAndVerifyCard(normCardInput($('cardUri').value));
   // scoped to the record version: a checksummed record already proved itself in the parser
   if(knownCardStatus(c.P1hex, c.serial, c.version) === 'mismatch') throw new Error('card code does not match card No. '+c.serial+' [CARD-06]');
+  return c;
+}
+// Recovery remains open for every structurally valid legacy record, but funding does not. Record v1 has
+// no checksum: one changed character can alter P1 and the serial together, escaping the issued ranges and
+// producing a normal-looking address the sealed words cannot open. Official v1 setup therefore requires
+// a positive, exact issued-record match. Record v2 checks itself in parseAndVerifyCard().
+function loadFundingCard(){
+  const c = loadCard();
+  if(c.version === 1 && knownCardStatus(c.P1hex, c.serial, c.version) !== 'ok'){
+    throw new Error('unknown v1 record cannot be funded [CARD-08]');
+  }
   return c;
 }
 function sats(n){ return n.toLocaleString('en-US'); }
@@ -87,13 +99,13 @@ function wordGrid(m){
 }
 
 // balance check for the claim flow; reusable by the Try again button (claimState survives the input clearing)
-async function checkClaimBalance(){
-  const c = claimState;
+async function checkClaimBalance(active = ()=>true, c = claimState){
   $('retryBal').classList.add('hide');
   $('showOut').textContent = 'Checking the card...';
   let utxos;
   try{ utxos = (await getUtxos(c.address)).utxos; }
   catch(e){
+    if(!active() || claimState !== c) return;
     // a flooded card is NOT a network failure: saying so would send the customer to check their wifi
     // forever while the real answer is the offline tool
     const many = sweepErrText(e.message);
@@ -102,6 +114,7 @@ async function checkClaimBalance(){
     $('retryBal').classList.remove('hide');
     return;
   }
+  if(!active() || claimState !== c) return;
   const total = utxos.reduce((s,u)=>s+u.value,0);
   if(total <= 0){
     $('showOut').textContent = 'No bitcoin is showing on this card right now. Nothing was moved by this check. First, compare both sets of words with the card one word at a time, then tap Try again. If the words are correct, the payment may have been sent very recently, may not have been sent yet, or the card may have been claimed before. [CARD-04]';
@@ -123,6 +136,7 @@ async function checkClaimBalance(){
 // cardChanged() reports a card swap that never happened, wiping the flow state mid-claim
 function cardKey(){ try{ return parseAndVerifyCard(normCardInput($('cardUri').value)).P1hex; }catch(e){ return null; } }
 function resetFlowState(){
+  contextGeneration++;
   setup = {}; setupLocked = false; claimState = null;
   lastRawTx = null; lastTxId = null; lastReviewedDest = null; stateCard = null; lastRate = null; lastUtxos = null;
   ['setupOut','verifyOut','arriveOut','fundOut','destOut','claimOut','bcastOut','bumpOut','showOut','balFlowOut','wc1','wc2']
@@ -139,8 +153,10 @@ function cardChanged(){ return stateCard !== null && stateCard !== cardKey(); }
 // single in-flight wrapper: disables the button and blocks concurrent handlers (double-click / double-broadcast races)
 async function run(btnId, fn){
   if(busy) return;
+  const generation = contextGeneration;
+  const active = ()=> generation === contextGeneration;
   busy = true; const b = $(btnId); if(b) b.disabled = true;
-  try{ await fn(); }
+  try{ await fn(active); }
   finally{ busy = false; if(b) b.disabled = false; }
 }
 
@@ -212,8 +228,9 @@ function init(){
     el.classList.toggle('hide', !text);
   }
   // route buttons stay disabled until a real card is loaded, so tapping one can never just produce an error
-  function setRoutesEnabled(on){
-    ['pathGive','pathClaim','pathBal'].forEach(id => { const el = $(id); if(el) el.disabled = !on; });
+  function setRoutesEnabled(on, fundingOK = on){
+    ['pathClaim','pathBal'].forEach(id => { const el = $(id); if(el) el.disabled = !on; });
+    const give = $('pathGive'); if(give) give.disabled = !fundingOK;
   }
   // Once a card is loaded the serial in the header is the confirmation, so the paste box collapses
   // to a quiet link. Someone who scanned never needed the box; someone without a card still gets it.
@@ -231,7 +248,11 @@ function init(){
       // holding a different key. Nothing later in the flow would notice: setup would show a normal deposit
       // address that no key opens. For cards we actually made we know the real key, so check it here, at
       // the only point where the mistake is still free to fix.
-      $('cardStatus').textContent = '✓ card loaded (No. '+c.serial+')'; setChip('No. '+c.serial); setRoutesEnabled(true);
+      const fundingOK = c.version !== 1 || knownCardStatus(c.P1hex, c.serial, c.version) === 'ok';
+      $('cardStatus').textContent = fundingOK
+        ? '✓ card loaded (No. '+c.serial+')'
+        : 'This legacy card code is not an exact issued Bitcard record. Do not add bitcoin using it. Re-scan the QR on the card. If you already have both sets of words, the claim path remains available. [CARD-08]';
+      setChip('No. '+c.serial); setRoutesEnabled(true, fundingOK);
       showCardBox(false);
     }catch(e){
       showCardBox(true);
@@ -260,27 +281,30 @@ function init(){
   refreshCardStatus();
 
   // navigation (each flow needs the card loaded first; surface the gate message where the user can see it)
-  const go = flow => {
-    try{ loadCard(); }
+  const go = (flow, funding = false) => {
+    try{ funding ? loadFundingCard() : loadCard(); }
     catch(e){
-      $('cardStatus').textContent = 'First scan the QR on the back of the card with your phone camera, or paste the code into the box above.';
+      $('cardStatus').textContent = /CARD-08/.test(e.message)
+        ? 'This legacy card code is not an exact issued Bitcard record, so it cannot be used to add bitcoin. Re-scan the QR on the card. [CARD-08]'
+        : 'First scan the QR on the back of the card with your phone camera, or paste the code into the box above.';
       try{ $('cardUri').scrollIntoView({behavior:'smooth', block:'center'}); }catch(err){}
       return;
     }
     if(cardChanged()) resetFlowState();   // belt and suspenders: state that predates the current card is discarded
     show(flow);
   };
-  $('pathGive').onclick = ()=> go('giveFlow');
+  $('pathGive').onclick = ()=> go('giveFlow', true);
   $('pathClaim').onclick = ()=> go('claimFlow');
   $('pathBal').onclick = ()=> go('balFlow');
   $('changeCard').onclick = ()=>{ showCardBox(true); const el=$('cardUri'); if(el){ el.focus(); el.select(); } };
   // Back from GIVE keeps the generated words on purpose: they may already be written on a physical card,
   // and silently discarding them would strand any bitcoin later sent to that card. The button label says so.
-  $('giveBack').onclick = ()=> show('chooser');
+  $('giveBack').onclick = ()=>{ contextGeneration++; show('chooser'); };
   // Back from CLAIM and BALANCE really does start over: nothing is written down yet, and leaving typed
   // secret words sitting in the boxes is both confusing and a privacy leak on a shared phone.
   $('claimBack').onclick = ()=>{
-    claimState = null; lastRawTx = null; lastTxId = null; lastReviewedDest = null; lastUtxos = null; lastRate = null;
+    contextGeneration++;
+    claimState = null; lastRawTx = null; lastTxId = null; lastReviewedDest = null; lastUtxos = null; lastRate = null; stateCard = null;
     ['claimP1','claimP2','dest'].forEach(id => { const el=$(id); if(el) el.value=''; });
     ['wc1','wc2','showOut','claimOut','bcastOut','bumpOut','destOut'].forEach(id => { const el=$(id); if(el) el.textContent=''; });
     ['sendSection','confirmRow','bcastBtn','bumpBtn','retryBal'].forEach(id => { const el=$(id); if(el) el.classList.add('hide'); });
@@ -288,6 +312,7 @@ function init(){
     show('chooser');
   };
   $('balBack').onclick = ()=>{
+    contextGeneration++;
     const bw = $('balWords'); if(bw) bw.value = '';
     const bo = $('balFlowOut'); if(bo) bo.textContent = '';
     show('chooser');
@@ -297,6 +322,13 @@ function init(){
   function wireCounter(inpId, outId){
     const el = $(inpId), o = $(outId);
     el.addEventListener('input', ()=>{
+      contextGeneration++;
+      // Once either phrase changes, every address, balance and signed draft derived from the old phrases is
+      // stale. Clear the whole downstream claim state, not just the word-count message.
+      claimState = null; lastRawTx = null; lastTxId = null; lastReviewedDest = null; lastUtxos = null; lastRate = null; stateCard = null;
+      ['claimOut','bcastOut','destOut'].forEach(id => { const x=$(id); if(x) x.textContent=''; });
+      ['sendSection','confirmRow','bcastBtn','bumpBtn'].forEach(id => { const x=$(id); if(x) x.classList.add('hide'); });
+      const dc = $('destConfirm'); if(dc) dc.checked = false;
       // count exactly the way validation parses, or a comma separated list reads "1 of 12 words" and then submits fine
       const t = normWords(el.value);
       const n = t ? t.split(' ').length : 0;
@@ -310,6 +342,7 @@ function init(){
 
   // audit #4: editing the destination must invalidate any already-signed draft so a stale tx can never be broadcast
   $('dest').addEventListener('input', ()=>{
+    contextGeneration++;
     lastRawTx = null; lastTxId = null; lastReviewedDest = null;
     if($('destConfirm')) $('destConfirm').checked = false;
     $('confirmRow').classList.add('hide');
@@ -319,9 +352,9 @@ function init(){
   });
 
   // ---------- GIVE FLOW ----------
-  $('setupBtn').onclick = ()=> run('setupBtn', async ()=>{
+  $('setupBtn').onclick = ()=> run('setupBtn', async active=>{
     try{
-      const card = loadCard();
+      const card = loadFundingCard();
       // audit #6: never silently overwrite a set that may already be written on a card and funded.
       // Once Step-2 verification has passed, regeneration is disabled OUTRIGHT (no dialog path): the words are
       // presumed written on a physical card and possibly funded. Reload the page to start over with a fresh card.
@@ -347,9 +380,11 @@ function init(){
         let total = null;
         try{ total = await checkFunded(); }
         catch(e){
+          if(!active()) return;
           log('setupOut','We could not reach the network to check whether this card already holds bitcoin, so we did not replace the words. Try again in a moment. If you already wrote the current words on a card, keep them, do not make new ones.','bad');
           return;
         }
+        if(!active()) return;
         if(total > 0){
           log('setupOut','Stop: the words you already have control '+sats(total)+' sats on this card. Making new words would abandon that bitcoin forever. Keep the words already written on the card. To move that bitcoin, go back and choose: This card was given to me.','bad');
           return;
@@ -359,8 +394,8 @@ function init(){
           return;
         }
         // close the check-then-replace race: funds may have arrived while the dialog sat open; fail closed on any doubt
-        try{ if(await checkFunded() > 0){ log('setupOut','Stop: bitcoin arrived on these words while you were deciding. Keeping them. To move that bitcoin, go back and choose: This card was given to me.','bad'); return; } }
-        catch(e){ log('setupOut','We could not re-check the network, so we did not replace the words. Try again in a moment.','bad'); return; }
+        try{ const fundedNow = await checkFunded(); if(!active()) return; if(fundedNow > 0){ log('setupOut','Stop: bitcoin arrived on these words while you were deciding. Keeping them. To move that bitcoin, go back and choose: This card was given to me.','bad'); return; } }
+        catch(e){ if(!active()) return; log('setupOut','We could not re-check the network, so we did not replace the words. Try again in a moment.','bad'); return; }
       }
       const m2 = newMnemonic();
       const addr = setupAddress(card.P1hex, halfScalar(m2));
@@ -398,12 +433,13 @@ function init(){
     }catch(e){ log('verifyOut','That is not 12 valid words yet. Type all 12, in order, with a space between each one.','bad'); }
   };
 
-  $('arriveBtn').onclick = ()=> run('arriveBtn', async ()=>{
+  $('arriveBtn').onclick = ()=> run('arriveBtn', async active=>{
     if(!setup.addr){ log('arriveOut','Do Steps 1 and 2 first.','bad'); return; }
     if(cardChanged()){ resetFlowState(); log('arriveOut','The card changed. Please start again from Step 1.','bad'); return; }
     log('arriveOut','Checking...');
     try{
       const utxos = (await getUtxos(setup.addr)).utxos;
+      if(!active()) return;
       const { conf, pend } = splitConfirmed(utxos);
       // "ready to give" is reserved for CONFIRMED money: a pending payment can in principle still fall through,
       // and a sealed, gifted card must never be backed by funds that never landed.
@@ -411,11 +447,11 @@ function init(){
       else if(conf > 0) log('arriveOut','This card holds '+sats(conf)+' sats confirmed, and '+sats(pend)+' more sats are on the way but not confirmed yet. Wait until everything is confirmed before you seal and give it. Check again in a few minutes.');
       else if(pend > 0) log('arriveOut','Your payment of '+sats(pend)+' sats is on the way: the network has seen it but not confirmed it yet. This usually takes ten minutes to an hour. Do not seal or give the card yet, check again once it is confirmed.');
       else log('arriveOut','Nothing has arrived yet. Payments usually show within the hour, check again soon.');
-    }catch(e){ log('arriveOut','Could not reach the network: '+e.message,'bad'); }
+    }catch(e){ if(active()) log('arriveOut','Could not reach the network: '+e.message,'bad'); }
   });
 
   // ---------- CLAIM FLOW ----------
-  $('showBtn').onclick = ()=> run('showBtn', async ()=>{
+  $('showBtn').onclick = ()=> run('showBtn', async active=>{
     // boxes are validated in on-screen order, which matches the card's top-to-bottom layout: sealed half first
     const r1 = checkWords($('claimP1').value, 'scratch-panel box');
     if(r1.err){ log('showOut', r1.err, 'bad'); return; }
@@ -446,17 +482,17 @@ function init(){
       stateCard = card.P1hex;   // bind this claim to the loaded card (audit: card A->B)
       $('claimP1').value = ''; $('claimP2').value = '';   // privacy: clear the secret words from the inputs
       $('wc1').textContent = ''; $('wc2').textContent = '';
-      await checkClaimBalance();
-    }catch(e){ log('showOut','Something went wrong: '+e.message,'bad'); }
+      await checkClaimBalance(active, claimState);
+    }catch(e){ if(active()) log('showOut','Something went wrong: '+e.message,'bad'); }
   });
 
-  $('retryBal').onclick = ()=>{ if(claimState) checkClaimBalance(); };
+  $('retryBal').onclick = ()=>{ if(claimState) run('retryBal', active=>checkClaimBalance(active, claimState)); };
 
   $('genDest').onclick = ()=>{
     $('destOut').textContent = 'You need somewhere of your own to keep the bitcoin. Two options. If you already use an exchange or an app that holds bitcoin, open it, find Receive, and copy the address. Otherwise install a free bitcoin wallet app, which takes about five minutes. Use a trusted one: fake bitcoin wallets do exist in app stores, so check the app has a long history and many reviews, and it is worth asking someone you trust which one they use. There is no rush at all: the bitcoin stays safe on this card until you move it, so you can close this page and come back another day.';
   };
 
-  $('reviewBtn').onclick = ()=> run('reviewBtn', async ()=>{
+  $('reviewBtn').onclick = ()=> run('reviewBtn', async active=>{
     if(!claimState){ log('claimOut','Please do Step 1 first (enter your words and tap "Show my bitcoin").','bad'); return; }
     if(cardChanged()){ resetFlowState(); log('claimOut','The card changed. Please start again from Step 1.','bad'); return; }
     // bech32 is case insensitive, so an ALL-CAPS address is valid. Canonicalize before use, otherwise the
@@ -466,9 +502,14 @@ function init(){
     try{ const a = btc.Address(BTCNET); dest = a.encode(a.decode(dest)); }catch(e){}
     if(!dest){ log('claimOut','Enter your wallet address. If you do not have a wallet app yet, tap the button below the box.','bad'); return; }
     $('confirmRow').classList.add('hide'); $('bcastBtn').classList.add('hide'); $('bumpBtn').classList.add('hide');
+    const reviewClaim = claimState;
     let s;
-    try{ s = await buildSweep(claimState, dest, 0); }
-    catch(e){ log('claimOut', sweepErrText(e.message) || ('Could not reach the network: '+e.message), 'bad'); return; }
+    try{ s = await buildSweep(reviewClaim, dest, 0); }
+    catch(e){ if(active()) log('claimOut', sweepErrText(e.message) || ('Could not reach the network: '+e.message), 'bad'); return; }
+    if(!active() || claimState !== reviewClaim || cardChanged()) return;
+    let destAfter = $('dest').value.trim();
+    try{ const a = btc.Address(BTCNET); destAfter = a.encode(a.decode(destAfter)); }catch(e){}
+    if(destAfter !== dest) return; // even a programmatic edit without an input event invalidates the completed draft
     lastRawTx = s.rawTx; lastTxId = s.txid; lastReviewedDest = dest; lastRate = s.rate; lastUtxos = s.utxos;
     if($('destConfirm')) $('destConfirm').checked = false;
     $('claimOut').textContent =
@@ -481,7 +522,7 @@ function init(){
     $('confirmRow').classList.remove('hide'); $('bcastBtn').classList.remove('hide');
   });
 
-  $('bcastBtn').onclick = ()=> run('bcastBtn', async ()=>{
+  $('bcastBtn').onclick = ()=> run('bcastBtn', async active=>{
     if(!lastRawTx){ log('bcastOut','Tap "Review before sending" first.','bad'); return; }
     if($('destConfirm') && !$('destConfirm').checked){ log('bcastOut','Please tick the box to confirm the address is correct.','bad'); return; }
     if(cardChanged()){ resetFlowState(); log('bcastOut','The card changed. Please start again from Step 1.','bad'); return; }
@@ -495,15 +536,25 @@ function init(){
       log('bcastOut','The wallet address changed after you reviewed it. Nothing was sent. Tap "Review before sending" again so you confirm the address it will actually go to.','bad');
       return;
     }
+    const draft = { rawTx:lastRawTx, txid:lastTxId, dest:lastReviewedDest, utxos:lastUtxos, claim:claimState };
     // The draft spends an EXACT set of coins captured at Review. If another payment reached the card in
     // between, or a node was briefly behind and has since caught up, broadcasting the old draft sweeps only
     // the coins we knew about and leaves the rest on a card the success screen tells people to stop using.
     // The money is not gone, but the words usually are, so treat a changed set as a hard stop.
     const utxoKey = list => list.map(u => u.txid + ':' + u.vout + ':' + u.value).sort().join('|');
     let freshUtxos;
-    try{ freshUtxos = (await getUtxos(claimState.address)).utxos; }
-    catch(e){ log('bcastOut','We could not re-check the card just before sending, so nothing was sent. This is usually a brief network problem. Try again in a minute [NET-02].','bad'); return; }
-    if(utxoKey(freshUtxos) !== utxoKey(lastUtxos)){
+    try{ freshUtxos = (await getUtxos(draft.claim.address)).utxos; }
+    catch(e){ if(active()) log('bcastOut','We could not re-check the card just before sending, so nothing was sent. This is usually a brief network problem. Try again in a minute [NET-02].','bad'); return; }
+    if(!active() || claimState !== draft.claim || cardChanged()) return;
+    let finalDest = $('dest').value.trim();
+    try{ const a = btc.Address(BTCNET); finalDest = a.encode(a.decode(finalDest)); }catch(e){}
+    if(finalDest !== draft.dest || ($('destConfirm') && !$('destConfirm').checked) || lastRawTx !== draft.rawTx || lastTxId !== draft.txid){
+      lastRawTx = null; lastTxId = null; lastReviewedDest = null; lastUtxos = null;
+      $('confirmRow').classList.add('hide'); $('bcastBtn').classList.add('hide');
+      log('bcastOut','The payment details changed while we were doing the final safety check. Nothing was sent. Tap "Review before sending" again.','bad');
+      return;
+    }
+    if(utxoKey(freshUtxos) !== utxoKey(draft.utxos)){
       lastRawTx = null; lastTxId = null; lastReviewedDest = null; lastUtxos = null;
       $('confirmRow').classList.add('hide'); $('bcastBtn').classList.add('hide');
       log('bcastOut','The bitcoin on this card changed while you were checking the details, so nothing was sent. Usually this means another payment arrived. Tap "Review before sending" again so all of it is included [UTXO-01].','bad');
@@ -511,7 +562,8 @@ function init(){
     }
     log('bcastOut','Sending...');
     try{
-      const r = await broadcastTx(lastRawTx, lastTxId);   // §5: node must echo the txid we computed
+      const r = await broadcastTx(draft.rawTx, draft.txid);   // §5: node must echo the txid we computed
+      if(!active() || claimState !== draft.claim) return;
       const bo = $('bcastOut'); bo.textContent = '';
       // 'pending' (neutral), not 'bad': the payment DID go through, we just could not double-check it.
       // Red here reads as failure and scares people into thinking their money is lost.
@@ -531,24 +583,27 @@ function init(){
       // audit #7: leave a way to un-stick a slow payment. claimState is kept for this and cleared on pagehide/reset.
       $('confirmRow').classList.add('hide'); $('bcastBtn').classList.add('hide');
       $('bumpBtn').classList.remove('hide');
-    }catch(e){ log('bcastOut','Could not send ('+e.message+'). Usually this means nothing moved and you can try again in a minute. If you already tapped Send once, check your wallet first, an earlier try may have gone through.','bad'); }
+    }catch(e){ if(active()) log('bcastOut','Could not send ('+e.message+'). Usually this means nothing moved and you can try again in a minute. If you already tapped Send once, check your wallet first, an earlier try may have gone through.','bad'); }
   });
 
   // audit #7: RBF fee-recovery. Re-signs the SAME sweep (same inputs, same destination) at a strictly higher fee and rebroadcasts.
-  $('bumpBtn').onclick = ()=> run('bumpBtn', async ()=>{
+  $('bumpBtn').onclick = ()=> run('bumpBtn', async active=>{
     if(!claimState || !lastReviewedDest){ log('bumpOut','There is nothing to speed up on this page. If your payment has not arrived, re-enter your words in Step 1.','bad'); return; }
     if(cardChanged()){ resetFlowState(); return; }
     // both bump guards run through bumpEligible (core.js) so the regression tests exercise the exact same decision
     if(!bumpEligible(lastRate, null, null).ok){ log('bumpOut','The fee is already at the safety maximum of this app, so it cannot go higher. The payment should still confirm, it may just take longer. Keep the card and check your wallet later.','bad'); return; }
     log('bumpOut','Rebuilding at a higher fee...');
     const minRate = Math.max(2, Math.ceil((lastRate||2) * 1.5) + 1);   // bid strictly above the last fee
+    const bumpClaim = claimState, bumpDest = lastReviewedDest, bumpUtxos = lastUtxos, oldTxid = lastTxId;
     let s;
-    try{ s = await buildSweep(claimState, lastReviewedDest, minRate, lastUtxos); }   // re-spend the SAME inputs (valid RBF replacement)
-    catch(e){ log('bumpOut', sweepErrText(e.message) || ('Could not speed it up: '+e.message), 'bad'); return; }
+    try{ s = await buildSweep(bumpClaim, bumpDest, minRate, bumpUtxos); }   // re-spend the SAME inputs (valid RBF replacement)
+    catch(e){ if(active()) log('bumpOut', sweepErrText(e.message) || ('Could not speed it up: '+e.message), 'bad'); return; }
+    if(!active() || claimState !== bumpClaim || cardChanged() || lastTxId !== oldTxid) return;
     // a true replacement must differ; identical txid means the fee could not actually rise (e.g. clamped at the cap)
     if(!bumpEligible(lastRate, s.txid, lastTxId).ok){ log('bumpOut','The rebuilt payment came out identical, the fee could not go any higher. Nothing new was sent, the original payment is still on its way.','bad'); return; }
     try{
       const r = await broadcastTx(s.rawTx, s.txid);
+      if(!active() || claimState !== bumpClaim) return;
       lastRawTx = s.rawTx; lastTxId = s.txid; lastRate = s.rate;
       const bo = $('bumpOut'); bo.textContent = '';
       const sp = document.createElement('span'); sp.className = r.independent ? 'ok' : 'pending';
@@ -557,11 +612,11 @@ function init(){
       bo.appendChild(document.createTextNode('\n\nNew receipt (transaction id):\n'+s.txid+'\n\n'));
       const a = document.createElement('a'); a.href = ENDPOINTS.txExplorer +s.txid; a.textContent = 'Track the payment'; a.target = '_blank'; a.rel = 'noopener';
       bo.appendChild(a);
-    }catch(e){ log('bumpOut','Could not send the faster version ('+e.message+'). Your first payment may still confirm on its own, check your wallet.','bad'); }
+    }catch(e){ if(active()) log('bumpOut','Could not send the faster version ('+e.message+'). Your first payment may still confirm on its own, check your wallet.','bad'); }
   });
 
   // ---------- BALANCE FLOW (keeps the seal intact; needs only the handwritten half) ----------
-  $('balCheckBtn').onclick = ()=> run('balCheckBtn', async ()=>{
+  $('balCheckBtn').onclick = ()=> run('balCheckBtn', async active=>{
     try{
       const card = loadCard();
       const r = checkWords($('balWords').value, 'box');
@@ -570,11 +625,12 @@ function init(){
       $('balWords').value = '';   // audit #11: half is no longer needed once the address is derived; do not hold it through the network call
       log('balFlowOut','Checking...');
       const utxos = (await getUtxos(addr)).utxos;
+      if(!active()) return;
       const total = utxos.reduce((s,u)=>s+u.value,0);
       const bPend = splitConfirmed(utxos).pend;
       if(total > 0) log('balFlowOut','This card holds '+sats(total)+' satoshis ("sats"), tiny units of bitcoin ('+btcStr(total)+' BTC)'+(bPend > 0 ? ', of which '+sats(bPend)+' sats arrived recently and are still confirming' : '')+'. Keep the panel sealed until you are ready to claim.','ok');
       else log('balFlowOut','There is no bitcoin on this card right now. If it was funded in the last hour, the network may still be processing it, check again soon. If the card was claimed before, the bitcoin has already been moved.');
-    }catch(e){ log('balFlowOut','Could not check: '+e.message,'bad'); }
+    }catch(e){ if(active()) log('balFlowOut','Could not check: '+e.message,'bad'); }
   });
 
   showBuildHash();

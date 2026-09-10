@@ -7,14 +7,15 @@
 $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $cfg = Get-Content (Join-Path $here "expected-hashes.json") -Raw | ConvertFrom-Json
-$log = Join-Path $here "monitor-log.txt"
+$stateDir = Join-Path $env:LOCALAPPDATA "BitcardMonitor"
+New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+$log = Join-Path $stateDir "monitor-log.txt"
 $stamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
 
-# HEARTBEAT: written on every run to a cloud-synced folder, so it is readable from a phone.
-# Silence is itself the alarm. A monitor that only shouts on failure cannot tell you it stopped running,
-# and an attacker who deploys while the workstation is off would otherwise meet no alarm at all.
+# HEARTBEAT: runtime state belongs outside the Git checkout. A separate watchdog checks its age.
+# Silence is itself the alarm. A monitor that only shouts on failure cannot tell you it stopped running.
 # Contains no secrets: a timestamp, a verdict, and the release commit being watched.
-$heartbeat = Join-Path $here "HEARTBEAT.txt"
+$heartbeat = Join-Path $stateDir "HEARTBEAT.txt"
 function Write-Heartbeat($verdict, $detail) {
   $age = "checked $stamp"
   $txt = "Bitcard integrity check`r`n$age`r`nverdict: $verdict`r`nwatching: $($cfg.builtFromCommit)`r`n$detail`r`n`r`n" +
@@ -49,7 +50,7 @@ if ($failures.Count -gt 0) {
     Set-Content -Path $alertPath -Value $msg -Encoding UTF8
     Add-Content -Path $log -Value "$stamp  MISMATCH  $($failures -join ' | ')"
     Write-Heartbeat "MISMATCH - POSSIBLE COMPROMISE" ($failures -join "`r`n")
-    try { (New-Object -ComObject WScript.Shell).Popup($msg, 0, "BITCARD HASH ALERT", 48) | Out-Null } catch {}
+    try { (New-Object -ComObject WScript.Shell).Popup($msg, 300, "BITCARD HASH ALERT", 48) | Out-Null } catch {}
     exit 2
 } elseif ($netErrors.Count -gt 0) {
     # unreachable is logged but not alarmed: transient outages are common and cannot alter served bytes

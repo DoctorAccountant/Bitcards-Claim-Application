@@ -21,8 +21,8 @@
 </head>
 <body>
   <h1>Bitcard maker tool, INTERNAL</h1>
-  <p class="sub">Generates Part 1 + a card record (no issuer key). Spec v0.4. Network shown in the status line.</p>
-  <div class="warn">&#x26A0; Internal card factory. It generates each card's Part 1 (the per-card secret). Do NOT give it to recipients, they use the separate claim app. After making a card, SEAL Part 1 on the card and DESTROY the maker copy (&sect;2a).</div>
+  <p class="sub">Retired internal browser tool. Production cards are minted only by the guarded command-line process.</p>
+  <div class="warn">&#x26A0; Browser minting is disabled. A browser cannot reserve serials in the shared allocation ledger. Use <b>mint-pilot-csv.mjs</b> under the manufacturing SOP.</div>
 
   <div class="panel">
     <h2>0 &middot; Status / self-test</h2>
@@ -32,9 +32,9 @@
   </div>
 
   <div class="panel">
-    <h2>1 &middot; Create a card</h2>
-    <p class="sub">Generates Part 1 and a QR card record. In production the Part-1 words are sealed on the card and the maker copy destroyed (&sect;2a). Verify each sealed card before it ships using the separate keyless <b>qc-tool.html</b>.</p>
-    <button id="genCard">Create card</button>
+    <h2>1 &middot; Card creation</h2>
+    <p class="sub">Disabled here. The CLI mint process reserves serials, checks randomness, self-verifies every words-to-QR pairing, and emits the QC manifest.</p>
+    <button id="genCard" disabled>Browser minting retired</button>
     <div id="cardOut" class="mono"></div>
   </div>
 <!--APPSCRIPT-->

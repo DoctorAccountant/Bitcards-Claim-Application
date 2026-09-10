@@ -8,7 +8,7 @@
 //
 // Run: node test-recover.mjs
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { FROZEN_VECTOR, FROZEN_VECTOR_WRAP, verifyFrozenVector } from './core.js';
 
@@ -16,7 +16,23 @@ let pass = 0, fail = 0;
 const ok = (n, c, d) => { c ? pass++ : (fail++, console.log('FAIL: ' + n + (d !== undefined ? '\n      ' + d : ''))); };
 
 const TOOL = fileURLToPath(new URL('../recover/bitcard-recover.py', import.meta.url));
+const PAGE = fileURLToPath(new URL('../recover/recover.html', import.meta.url));
 ok('recovery tool is present in the tree', existsSync(TOOL), TOOL);
+ok('recovery instruction page is present in the tree', existsSync(PAGE), PAGE);
+if (existsSync(TOOL)) {
+  const source = readFileSync(TOOL, 'utf8');
+  ok('recovery inverse does not require Python 3.8 pow(a,-1,m)', !/^\s*(?:return\s+)?pow\s*\([^\n]+,\s*-1\s*,/m.test(source));
+  ok('recovery output names the P2WPKH/native-SegWit wallet type', /P2WPKH|Native SegWit/i.test(source));
+  ok('recovery output gives Electrum the p2wpkh: prefix', /p2wpkh:/.test(source));
+  ok('recovery output warns to sweep rather than import', /sweep.{0,80}not import/i.test(source));
+}
+if (existsSync(PAGE)) {
+  const page = readFileSync(PAGE, 'utf8');
+  ok('recovery page labels the current v0.4 method', /bitcard-claim-spec v0\.4/i.test(page));
+  ok('recovery page names P2WPKH/native SegWit', /P2WPKH|Native SegWit/i.test(page));
+  ok('recovery page gives Electrum the p2wpkh: prefix', /p2wpkh:/.test(page));
+  ok('recovery page does not falsely say either half cannot reveal balance', !/neither half.{0,100}(?:address|balance)/is.test(page));
+}
 
 // Find a python. If there is none on this machine we must NOT quietly pass: that would hide a broken tool.
 let py = null;
@@ -27,6 +43,10 @@ const waived = process.argv.includes('--no-python');
 ok('a python interpreter is available to exercise it (or pass --no-python to waive)', py !== null || waived);
 
 if (py && existsSync(TOOL)) {
+  let grammar37 = '';
+  try { grammar37 = execFileSync(py, ['-c', 'import ast,sys; ast.parse(open(sys.argv[1], encoding="utf-8").read(), feature_version=(3,7)); print("OK")', TOOL], { encoding:'utf8' }); }
+  catch (e) { grammar37 = String(e.stdout || '') + String(e.stderr || ''); }
+  ok('recovery tool parses under the Python 3.7 grammar', /OK/.test(grammar37), grammar37.trim());
   let out = '';
   try { out = execFileSync(py, [TOOL, '--selftest'], { encoding: 'utf8' }); }
   catch (e) { out = String(e.stdout || '') + String(e.stderr || ''); }

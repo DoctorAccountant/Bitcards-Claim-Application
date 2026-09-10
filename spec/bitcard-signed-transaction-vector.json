@@ -1,0 +1,17 @@
+{
+  "source": "Independent Bitcoin Core 31.1.0 regtest review, 2026-09-10",
+  "network": "regtest",
+  "previousTxid": "62b511ddb0a6dbb44ac81ce37a124dcb1bd98e65c2d418cf62e708c0031ecec2",
+  "vout": 1,
+  "previousAmountSats": 1000000,
+  "previousScript": "0014d5f420207e08909ae5523e92a6577a78e817b803",
+  "destination": "bcrt1qcav84e22q0vhqqgt5mcusey9mpxy09v7d82jy9",
+  "destinationScript": "0014c7587ae54a03d970010ba6f1c86485d84c47959e",
+  "rawSignedTransaction": "02000000000101c2ce1e03c008e762cf18d4c2658ed91bcb4d127ae31cc84ab4dba6b0dd11b5620100000000fdffffff0164410f0000000000160014c7587ae54a03d970010ba6f1c86485d84c47959e02483045022100ef26ff507e15036d3d7d3b2a7608a54b25161fa5945bc2662a2de3599877fcd40220419820ef29a5df83b1d03ed498895e8c877724e083ded160a80f96391b18bbed01210224e2c50bd374f89dd83f7be42af1ef0a3d3092314ec76cdcbd10eea5c425a51c00000000",
+  "txid": "87a1af1c0ce851f5065277303c0c8bd9e1fa844bb237fa3131bb6438aea08cf6",
+  "wtxid": "998cc0263d7c601a2a32c3d074d20431c2d628e705e7a76a399b98c5fd9c12f4",
+  "BIP143Digest": "3f15a730611fff2afa854d9d0881f2731d9bafdff56d8b121526d91a25d518ee",
+  "feeSats": 220,
+  "vsize": 110,
+  "expectedBitcoinCoreVerdict": "allowed before spending"
+}

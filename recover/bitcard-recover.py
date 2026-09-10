@@ -28,9 +28,10 @@ HOW TO USE
   instead of a silently wrong address. Prefer the interactive prompt: words typed
   as command-line arguments can linger in your shell history and process list.
 
-  Output includes the P2WPKH address and the private key as WIF. Use your wallet's
-  SWEEP feature (Electrum/Sparrow: "Sweep"), not "import", so the coins move to a
-  fresh key you control. A Bitcard key is a one-time bearer key; do not keep or reuse it.
+  Output includes the P2WPKH (native SegWit) address and the private key as WIF.
+  In Sparrow choose P2WPKH/native SegWit in Sweep. In Electrum enter
+  p2wpkh:<WIF> in Wallet > Private Keys > Sweep. Before confirming, require the
+  wallet's source address to equal the funding address printed here. Do not Import.
 
 SPEC (so anyone can re-implement this from scratch):
   half scalar  = int( HMAC-SHA512(key="Bitcoin seed",
@@ -47,7 +48,18 @@ Gx     = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798
 Gy     = 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8
 G      = (Gx, Gy)
 
-def _inv(a, m): return pow(a, -1, m)
+def _inv(a, m):
+    # Extended Euclid rather than pow(a, -1, m), which was only added in Python 3.8.
+    # Keeping the tiny recovery tool compatible with older Python 3 installations is useful for archives.
+    a %= m
+    if a == 0: raise ValueError("inverse of zero")
+    old_r, r, old_s, s = a, m, 1, 0
+    while r:
+        q = old_r // r
+        old_r, r = r, old_r - q * r
+        old_s, s = s, old_s - q * s
+    if old_r != 1: raise ValueError("inverse does not exist")
+    return old_s % m
 
 def _add(p, q):
     if p is None: return q
@@ -191,7 +203,7 @@ def _convertbits(data, frm, to, pad=True):
 def p2wpkh(pubkey, hrp):
     return bech32_encode(hrp, [0] + _convertbits(list(hash160(pubkey)), 8, 5))
 
-# ---- WIF (so the recovered key imports into a standard wallet) ----
+# ---- WIF (so a wallet can sweep the recovered P2WPKH key) ----
 def _b58(b):
     alpha = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     n = int.from_bytes(b, "big"); out = ""
@@ -312,7 +324,11 @@ def main():
         print("Could not recover: %s" % e); return 1
     print("\nNetwork          :", "mainnet (bc1...)" if mainnet else "testnet (tb1...)")
     print("Funding address :", r["address"])
-    print("Private key WIF :", r["wif"], "  <- SWEEP this with a wallet (Electrum/Sparrow 'Sweep'); do not 'import' and reuse it")
+    print("Private key WIF :", r["wif"])
+    print("Electrum entry  :", "p2wpkh:" + r["wif"])
+    print("\nSWEEP, do not Import. Select P2WPKH/native SegWit in Sparrow, or use the Electrum entry above.")
+    print("Before confirming, the wallet's SOURCE address must exactly equal:", r["address"])
+    print("Keep both word halves until the sweep confirms and this source address shows zero balance.")
     print("Private key hex :", r["d_hex"])
     return 0
 

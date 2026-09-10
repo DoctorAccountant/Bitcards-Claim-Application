@@ -55,6 +55,8 @@ function witnessValid(rawHex, expectPubHex, utxos){
 
 const BUNDLE = process.argv[2] || 'app-claim.bundle.js';
 const CARD_999 = 'AQABAQOrOxUP6VvN0TIX0jhu801U5qRPbtBVoprrQ1nfUazLJgAAA-c';
+const CARD_101 = 'AQABAQNeyFBDvBKLzkvd64SOllZZHCuKXg4IsZ9iuQLKISgIOwAAAGU';
+const CARD_101_BOUNDARY_MUTATION = 'AQABAQNeyFBDvBKLzkvd64SOllZZHCuKXg4IsZ9iuQLKISgIOBAAAGU';
 const CARD_VEC = 'AQABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAABYAs';
 const TXID = 'a'.repeat(64);
 
@@ -96,6 +98,8 @@ function boot(net = {}){
   globalThis.fetch = async (url, opts) => {
     const utxos = net.utxos === undefined ? [] : net.utxos;
     if(opts && opts.method === 'POST'){
+      net.postCount = (net.postCount||0) + 1;
+      if(net.beforePost) await net.beforePost(url,opts);
       if(net.rejectPost && net.rejectPost(url)) return { ok:false, status:400, text:async()=>'rejected by this node' };
       // behave like a real node: refuse anything that would not actually spend
       const bad = net.skipWitnessCheck ? null : witnessValid(opts.body, net.expectPub || hex.encode(CARD_PUB), utxos);
@@ -107,7 +111,10 @@ function boot(net = {}){
     if(/fee-estimates/.test(url)) return { ok:true, status:200, json:async()=>({ '2': net.feeRate || 2 }) };
     // Return a fresh copy, as a real node does. Handing back the same array object let the app's stored
     // snapshot alias the live list, so a mid-flow change mutated both and no comparison could ever see it.
-    if(/\/utxo/.test(url)) return { ok:true, status:200, json:async()=>utxos.map(u=>({ ...u, status:{ ...u.status } })) };
+    if(/\/utxo/.test(url)){
+      if(net.beforeUtxo) await net.beforeUtxo(url,opts);
+      return { ok:true, status:200, json:async()=>utxos.map(u=>({ ...u, status:{ ...u.status } })) };
+    }
     return { ok:true, status:200, json:async()=>({}), text:async()=>'{}' };
   };
   new Function(fs.readFileSync(BUNDLE,'utf8'))();
@@ -132,7 +139,7 @@ const utxo = (v,conf)=>({ txid:'b'.repeat(64), vout:0, value:v, status:{confirme
   els.cardUri.value = 'not a card at all'; els.cardUri.dispatch('input');
   ok('junk card: routes stay disabled', els.pathGive.disabled && els.pathClaim.disabled);
   ok('junk card: message says it is not a Bitcard code', /does not look like a Bitcard code/i.test(els.cardStatus.textContent));
-  els.cardUri.value = CARD_999; els.cardUri.dispatch('input');
+  els.cardUri.value = CARD_101; els.cardUri.dispatch('input');
   ok('valid card: routes enabled', !els.pathGive.disabled && !els.pathClaim.disabled && !els.pathBal.disabled);
   ok('valid card: box collapses', els.cardBox.classList.contains('hide'));
   ok('valid card: change-card link offered', !els.changeCard.classList.contains('hide'));
@@ -141,7 +148,7 @@ const utxo = (v,conf)=>({ txid:'b'.repeat(64), vout:0, value:v, status:{confirme
 // ---------------- 2. GIVE: address must never precede verification ----------------
 {
   const { els } = boot();
-  els.cardUri.value = CARD_999; els.cardUri.dispatch('input');
+  els.cardUri.value = CARD_101; els.cardUri.dispatch('input');
   els.pathGive.onclick();
   els.setupBtn.onclick();
   await tick();
@@ -173,7 +180,7 @@ const utxo = (v,conf)=>({ txid:'b'.repeat(64), vout:0, value:v, status:{confirme
 // ---------------- 3. GIVE: unconfirmed funds are never "ready to give" ----------------
 {
   const { els } = boot({ utxos:[utxo(50000,false)] });
-  els.cardUri.value = CARD_999; els.cardUri.dispatch('input');
+  els.cardUri.value = CARD_101; els.cardUri.dispatch('input');
   els.pathGive.onclick(); els.setupBtn.onclick(); await tick();
   const grid = els.setupOut.textContent;
   const words=[]; for(let i=1;i<=12;i++){ words.push(grid.match(new RegExp('(?:^|\\s)'+i+'\\.\\s+([a-z]+)'))[1]); }
@@ -184,7 +191,7 @@ const utxo = (v,conf)=>({ txid:'b'.repeat(64), vout:0, value:v, status:{confirme
 }
 {
   const { els } = boot({ utxos:[utxo(50000,true)] });
-  els.cardUri.value = CARD_999; els.cardUri.dispatch('input');
+  els.cardUri.value = CARD_101; els.cardUri.dispatch('input');
   els.pathGive.onclick(); els.setupBtn.onclick(); await tick();
   const grid = els.setupOut.textContent;
   const words=[]; for(let i=1;i<=12;i++){ words.push(grid.match(new RegExp('(?:^|\\s)'+i+'\\.\\s+([a-z]+)'))[1]); }
@@ -261,6 +268,13 @@ async function claimToReview(net){
     ok('the output pays the reviewed destination, not the card',
        hex.encode(tx.getOutput(0).script) === DEST_SPK, hex.encode(tx.getOutput(0).script));
     ok('the output does NOT pay back to the card', hex.encode(tx.getOutput(0).script) !== CARD_SPK);
+    // Isolate the check that ties the witness key to the PREVIOUS OUTPUT, not merely to itself. If that
+    // oracle line is removed, this negative fixture must fail even though the signature and expected key
+    // remain internally valid.
+    const wrongChain = net.utxos.map(u=>({ ...u, scriptPubKey:DEST_SPK }));
+    const wrongScriptReason = witnessValid(posted, hex.encode(CARD_PUB), wrongChain);
+    ok('oracle rejects a valid witness when the real prevout locks to another key',
+       /does not match the locking script/.test(wrongScriptReason||''), wrongScriptReason);
   }
 }
 
@@ -289,6 +303,21 @@ async function claimToReview(net){
   els.claimP2.value = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
   els.showBtn.onclick(); await tick(150);
   ok('minted serial + wrong key: fails closed when called directly', !/holds/.test(els.showOut.textContent), els.showOut.textContent.slice(0,120));
+}
+
+// A single boundary character changes both P1 and serial 101, escaping the issued ranges. The old test
+// counted "unknown" as caught while the customer apps allowed funding. Exercise the real setup handlers.
+{
+  const { els } = boot();
+  els.cardUri.value = CARD_101_BOUNDARY_MUTATION; els.cardUri.dispatch('input');
+  ok('altered issued v1 -> unknown: Give route is disabled', els.pathGive.disabled, els.cardStatus.textContent);
+  ok('altered issued v1 -> unknown: warning says not to add bitcoin', /Do not add bitcoin|cannot be used to add bitcoin/i.test(els.cardStatus.textContent));
+  els.pathGive.onclick();
+  ok('altered issued v1 -> unknown: direct Give handler cannot enter setup', els.giveFlow.classList.contains('hide'));
+  els.setupBtn.onclick(); await tick();
+  ok('altered issued v1 -> unknown: direct setup handler emits no words or funding address',
+     !/Write these 12 words|Send bitcoin to this address/.test(els.setupOut.textContent+els.fundOut.textContent));
+  ok('altered issued v1 -> unknown: Claim remains available for recovery with both halves', !els.pathClaim.disabled);
 }
 
 // ---------------- 4a. The Part 1 pairing gate must not be removable unnoticed ----------------
@@ -438,12 +467,71 @@ async function claimToReview(net){
   ok('state: send after card change does not broadcast', !/Sent\./i.test(els.bcastOut.textContent));
 }
 {
+  const els = await claimToReview();
+  els.claimP2.value = 'zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong';
+  els.claimP2.dispatch('input');
+  ok('state: editing either phrase invalidates the old balance and signed plan',
+    els.sendSection.classList.contains('hide') && els.claimOut.textContent === '');
+  els.destConfirm.checked = true;
+  els.bcastBtn.onclick(); await tick(100);
+  ok('state: forced Send after phrase edit cannot broadcast', !/Sent\./i.test(els.bcastOut.textContent));
+}
+{
   // same attack via the URL fragment rather than the box
   const els = await claimToReview();
   globalThis.location.hash = '#' + CARD_999;
   els; globalThis.window.dispatch('hashchange'); await tick();
   ok('state: hashchange to another card clears typed words', els.claimP1.value === '' && els.claimP2.value === '');
   ok('state: hashchange returns to chooser', !els.chooser.classList.contains('hide'));
+}
+
+// Deferred network work belongs to the context that started it. Resolving after a reset must not restore
+// an old balance/review, and a destination changed while the final UTXO check waits must never reach POST.
+{
+  let release; const gate = new Promise(r=>{ release=r; });
+  const net = { utxos:[utxo(200000,true)], beforeUtxo:()=>gate };
+  const { els } = boot(net);
+  els.cardUri.value = CARD_VEC; els.cardUri.dispatch('input'); els.pathClaim.onclick();
+  els.claimP1.value = CLAIM_P1; els.claimP2.value = CLAIM_P2;
+  const pending = els.showBtn.onclick(); await tick(20);
+  els.cardUri.value = CARD_999; els.cardUri.dispatch('input');
+  release(); await pending; await tick();
+  ok('race: obsolete balance response does not repopulate the new card context', els.showOut.textContent === '');
+  ok('race: obsolete balance response does not reveal Send', els.sendSection.classList.contains('hide'));
+}
+{
+  const net = { utxos:[utxo(200000,true)] };
+  const { els } = boot(net);
+  els.cardUri.value = CARD_VEC; els.cardUri.dispatch('input'); els.pathClaim.onclick();
+  els.claimP1.value = CLAIM_P1; els.claimP2.value = CLAIM_P2;
+  els.showBtn.onclick(); await tick(150);
+  let release; const gate = new Promise(r=>{ release=r; }); net.beforeUtxo=()=>gate;
+  els.dest.value = DEST;
+  const pending = els.reviewBtn.onclick(); await tick(20);
+  els.cardUri.value = CARD_999; els.cardUri.dispatch('input');
+  release(); await pending; await tick();
+  ok('race: obsolete Review cannot restore a signed plan after card change', els.claimOut.textContent === '');
+  ok('race: obsolete Review cannot restore the Send controls', els.bcastBtn.classList.contains('hide'));
+}
+{
+  const net = { utxos:[utxo(200000,true)] };
+  const els = await claimToReview(net);
+  let release; const gate = new Promise(r=>{ release=r; }); net.beforeUtxo=()=>gate;
+  els.destConfirm.checked=true;
+  const pending=els.bcastBtn.onclick(); await tick(20);
+  els.dest.value='bc1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrvtkvyg'; // silent edit, no input event
+  release(); await pending; await tick();
+  ok('race: destination edit during final UTXO check produces zero POSTs', (net.postCount||0)===0, net.postCount);
+}
+{
+  const net = { utxos:[utxo(200000,true)] };
+  const els = await claimToReview(net);
+  let release; const gate = new Promise(r=>{ release=r; }); net.beforePost=()=>gate;
+  els.destConfirm.checked=true;
+  const pending=els.bcastBtn.onclick(); await tick(20);
+  globalThis.window.dispatch('pagehide');
+  release(); await pending; await tick();
+  ok('race: a POST response after pagehide does not restore a stale receipt', els.bcastOut.textContent==='');
 }
 
 // ---------------- 7. BACK semantics ----------------
@@ -457,7 +545,7 @@ async function claimToReview(net){
 }
 {
   const { els } = boot();
-  els.cardUri.value = CARD_999; els.cardUri.dispatch('input');
+  els.cardUri.value = CARD_101; els.cardUri.dispatch('input');
   els.pathGive.onclick(); els.setupBtn.onclick(); await tick();
   const grid = els.setupOut.textContent;
   els.giveBack.onclick();

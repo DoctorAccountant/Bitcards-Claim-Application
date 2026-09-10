@@ -1,0 +1,41 @@
+name: Live artifact hash monitor
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify production and mirror bytes
+        env:
+          CONFIG_URL: https://raw.githubusercontent.com/deFox22/bitcard/main/monitor/expected-hashes.json
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, sys, urllib.request
+
+          def fetch(url):
+              req = urllib.request.Request(url, headers={"User-Agent": "Bitcard-live-hash-monitor/1"})
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  return response.read()
+
+          cfg = json.loads(fetch(os.environ["CONFIG_URL"]))
+          failures = []
+          for url in cfg["urls"]:
+              name = url.rsplit("/", 1)[-1]
+              actual = hashlib.sha256(fetch(url)).hexdigest()
+              expected = cfg["artifacts"].get(name)
+              print(f"{url} {actual}")
+              if not expected or actual != expected.lower():
+                  failures.append(f"{url}: {actual} != {expected}")
+          if failures:
+              print("\n".join(failures), file=sys.stderr)
+              raise SystemExit(2)
+          print(f"all {len(cfg['urls'])} URLs match release {cfg['builtFromCommit']}")
+          PY

@@ -4,12 +4,16 @@
 import { execFileSync } from 'node:child_process';
 
 const SUITES = [
+  ['test-build-portability.mjs', [], 'clean build uses only repository-relative inputs and matches released bytes'],
+  ['test-release-metadata.mjs', [], 'release stamping updates mandatory published hashes and fails closed'],
   ['test-encoding.mjs',     [], 'encoding: no mojibake, templates and artifacts ASCII'],
   ['test-core.mjs',         [], 'crypto vectors and card record round-trip'],
   ['test-entropy.mjs',      [], 'key generation entropy path (the Coldcard failure class)'],
   ['test-mainnet.mjs',      [], 'mainnet address encoding'],
   ['test-paste.mjs',        [], 'card code and word input parsing, including ambiguous pastes'],
   ['test-hardening.mjs',    [], 'node trust, broadcast, fee and RBF bounds'],
+  ['test-signed-vector.mjs', [], 'frozen Bitcoin Core accepted transaction and independent BIP143 checks'],
+  ['test-network-deadline.mjs', [], 'network timeout covers stalled response bodies'],
   ['test-setup-parity.mjs', [], 'offline setup derives the same address the claim path opens'],
   ['test-claim-ui.mjs',     ['app-claim.bundle.js'],   'claim app money path and state machine'],
   ['test-offline-ui.mjs',   ['app-offline.bundle.js'], 'offline tool gating, setup safety and state'],

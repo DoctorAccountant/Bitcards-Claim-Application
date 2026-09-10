@@ -93,8 +93,10 @@ globalThis.fetch = async (url, opts) => {
   const ADDR = 'bc1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrvtkvyg';
   const U = (txid, vout, value, confirmed) => ({ txid, vout, value, status: { confirmed } });
   const A = U('a'.repeat(64), 0, 50000, true);
-  const serve = (blockstream, other) => { globalThis.fetch = async (url) => ({ ok: true, status: 200,
-    json: async () => url.includes('blockstream') ? blockstream : other, text: async () => '{}' }); };
+  const serve = (blockstream, other) => { globalThis.fetch = async (url) => {
+    const body = url.includes('blockstream') ? blockstream : other;
+    return { ok: true, status: 200, text: async () => JSON.stringify(body) };
+  }; };
   const agrees = async () => { try { await getUtxos(ADDR); return true; } catch (e) { return false; } };
 
   serve([A], [A]);
@@ -122,7 +124,7 @@ globalThis.fetch = async (url, opts) => {
 
   // a node that is simply down must not silently reduce the quorum to one
   globalThis.fetch = async (url) => { if (url.includes('blockstream')) throw new Error('down');
-    return { ok: true, status: 200, json: async () => [A], text: async () => '{}' }; };
+    return { ok: true, status: 200, text: async () => JSON.stringify([A]) }; };
   const oneNodeDown = await agrees();
   ok('behaviour with one node unreachable is deliberate, not accidental (accepted=' + oneNodeDown + ')', typeof oneNodeDown === 'boolean');
 }

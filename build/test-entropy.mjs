@@ -48,6 +48,11 @@ for (const f of ['app-claim.js', 'app-offline.js', 'mint-pilot-csv.mjs']) {
   ok(f + ': never calls generateMnemonic directly (that would skip the stuck-generator guard)', raw === 0, raw + ' raw call(s)');
   ok(f + ': generates keys through the guard (' + guarded + ' call sites)', guarded > 0);
 }
+{
+  const maker = fs.readFileSync(new URL('app-maker.js', import.meta.url), 'utf8');
+  ok('retired browser maker has no raw mnemonic generator', !/generateMnemonic\(|newMnemonic\(/.test(maker));
+  ok('retired browser maker disables card creation in code', /button\.disabled\s*=\s*true/.test(maker) && /Browser minting retired/.test(maker));
+}
 // and core.js must be the only file that reaches the raw generator
 {
   const core = fs.readFileSync(new URL('core.js', import.meta.url), 'utf8');

@@ -73,9 +73,9 @@ export function bigToBytes32(x){ return hexlib.decode(x.toString(16).padStart(64
 export function u32be(x){ return new Uint8Array([(x>>>24)&255,(x>>>16)&255,(x>>>8)&255,x&255]); }
 
 // ---- card record + verification (spec §4) ----
-// v1 (41 bytes) has NO integrity check: ~47% of single-character corruptions of a card code still decode
-// into a structurally valid record carrying a DIFFERENT valid key, and the giving flow would fund an
-// address no key opens. v2 appends checksum(5) = first 5 bytes of SHA-256 over the preceding 41 bytes,
+// v1 (41 bytes) has NO integrity check. In the exhaustive pilot-card substitution test, about 47% of
+// single-character changes still decoded as a structurally valid record: about 39% changed the public key
+// and about 8% changed only the serial. v2 appends checksum(5) = first 5 bytes of SHA-256 over the preceding 41 bytes,
 // covering everything including the serial. Chosen over bech32m deliberately: 46 bytes is 62 base64url
 // chars, which keeps the printed QR at the SAME version and module size as v1 by arithmetic, not by
 // encoder tricks a future tool could silently drop. Odds a random corruption survives: 1 in 2^40.
@@ -122,17 +122,17 @@ export function parseCard(uri){
 export const parseAndVerifyCard = parseCard; // back-compat alias for existing callers
 
 // ---- known-batch check: the missing checksum, retrofitted without reprinting ----
-// A v1 record carries no checksum. Roughly 40% of single-character corruptions of a card code still decode
-// to a structurally valid record holding a DIFFERENT valid public key, and the giving flow would then show
-// a perfectly normal deposit address that no key on earth opens. QR scanning is not the risk (Reed-Solomon
-// either decodes correctly or fails); hand-typing and OCR are.
+// A v1 record carries no checksum. In the exhaustive pilot-card substitution test, about 39% of
+// single-character changes decoded to a structurally valid record holding a DIFFERENT valid public key.
+// QR error correction reduces ordinary scan errors, but cannot make damaged, substituted, OCR'd, or
+// manually transcribed data trustworthy.
 // We cannot add a checksum to printed cards, but we do know the real public key for every card we made.
-// Returns 'ok' | 'mismatch' | 'unknown'. 'unknown' is NOT a failure: cards outside our range must keep
-// working, or this stops being an open standard and starts being a permission slip from us.
+// Returns 'ok' | 'mismatch' | 'unknown'. Claim/Open keeps unknown v1 usable for permissionless recovery,
+// but the official Setup/Give flow requires a positive 'ok' before funding any v1 card.
 // version matters: the table exists ONLY because a v1 record cannot check itself. A v2 record carries its
 // own checksum, so applying the v1 table to it adds nothing and creates a way to brick a legitimate card:
 // mint v2 cards over a serial range the table already covers and every app would call them counterfeit.
-// Callers pass the record version and must enforce a mismatch only for versions that lack a checksum.
+// Callers pass the record version. Self-checking v2 records skip this legacy table.
 export function knownCardStatus(P1hex, serial, version){
   const B = KNOWN_BATCH;
   if(version !== undefined && version !== 1) return 'unknown';   // self-checking formats do not need the table

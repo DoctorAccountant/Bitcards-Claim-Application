@@ -106,7 +106,16 @@ function init(){
       return null;
     }
   };
-  $('modeSetup').onclick = ()=>{ if(requireCard()) showMode('setup'); };
+  const requireFundingCard = () => {
+    const c = requireCard();
+    if(!c) return null;
+    if(c.version === 1 && knownCardStatus(c.P1hex, c.serial, c.version) !== 'ok'){
+      $('cardStatus').textContent = 'This legacy card code is not an exact issued Bitcard record, so this tool will not create a funding address from it. Re-scan the QR on the card. Opening with both word halves remains available. [CARD-08]';
+      return null;
+    }
+    return c;
+  };
+  $('modeSetup').onclick = ()=>{ if(requireFundingCard()) showMode('setup'); };
   $('modeOpen').onclick  = ()=>{ if(requireCard()) showMode('open'); };
   $('setupBack').onclick = ()=> showMode(null);
   $('openBack').onclick  = ()=> showMode(null);
@@ -117,9 +126,12 @@ function init(){
     if(!val){ $('cardStatus').textContent = ''; return; }
     try{
       const c = parseAndVerifyCard(normCardInput(val));
-      $('cardStatus').textContent = knownCardStatus(c.P1hex, c.serial, c.version) === 'mismatch'
-        ? CARD06
-        : '✓ card loaded (No. '+c.serial+')';
+      const known = knownCardStatus(c.P1hex, c.serial, c.version);
+      const fundingOK = c.version !== 1 || known === 'ok';
+      $('cardStatus').textContent = known === 'mismatch' ? CARD06 : fundingOK
+        ? '✓ card loaded (No. '+c.serial+')'
+        : 'This legacy card code is not an exact issued Bitcard record. Do not add bitcoin using it. Re-scan the QR on the card. Opening with both word halves remains available. [CARD-08]';
+      const setupButton = $('modeSetup'); if(setupButton) setupButton.disabled = !fundingOK;
     }
     catch(e){ $('cardStatus').textContent = /checksum/.test(e.message)
       ? 'One character of this code is mistyped: the code carries its own check digits and they do not add up. Compare it with the card character by character. [CARD-07]'
@@ -130,14 +142,19 @@ function init(){
   // a different card must never leave the previous card's words, address, or key on screen
   // a different card must wipe the generated words too, not just the display: verifying against a stale
   // card record would show a deposit address belonging to the previous card
-  $('cardUri').addEventListener('input', ()=>{ resetSetupState(); refreshCardStatus(); clearResult(); clearSetup(); showMode(null); });
+  function clearCardBoundSecrets(){
+    clearResult(); clearSetup();
+    for(const id of ['p1','p2']){ const el=$(id); if(el) el.value=''; }
+    for(const id of ['wc1','wc2','keyOut']){ const el=$(id); if(el) el.textContent=''; }
+  }
+  $('cardUri').addEventListener('input', ()=>{ resetSetupState(); clearCardBoundSecrets(); refreshCardStatus(); showMode(null); });
   // A saved page can have its fragment changed without a reload (scanning a second card into the same tab).
   // Without this the tool would keep showing the FIRST card's generated words while the fragment says another
   // card, and an operator could write those words onto the wrong physical card. Same fail-closed reset the
   // hosted app performs.
   window.addEventListener('hashchange', ()=>{
     try{ const h=(location.hash||'').replace(/^#/,'').trim(); if(h){ $('cardUri').value = h.startsWith('bitcard:')?h:('bitcard:'+h); } }catch(e){}
-    resetSetupState(); clearResult(); clearSetup(); refreshCardStatus(); showMode(null);
+    resetSetupState(); clearCardBoundSecrets(); refreshCardStatus(); showMode(null);
   });
   refreshCardStatus();
 
@@ -154,7 +171,7 @@ function init(){
 
   $('genBtn').onclick = ()=>{
     if(LIVE){ log('genOut','This page is running from a website, so it will not make card words here. Save the file and open it offline.','bad'); return; }   // fail closed in code, not just via the disabled attribute
-    const card = requireCard(); if(!card) return;
+    const card = requireFundingCard(); if(!card) return;
     if(setupVerified){
       log('genOut','These words are checked and belong to this card now. Making new ones is disabled so bitcoin cannot be sent to words that were thrown away. To set up a different, unused card, change the card code above.','bad');
       return;

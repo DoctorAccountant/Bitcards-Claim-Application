@@ -10,6 +10,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execSync } from 'node:child_process';
+import { rewriteReadmeHashes } from './release-metadata.mjs';
 
 const ROOT = new URL('../', import.meta.url);
 const CFG = new URL('monitor/expected-hashes.json', ROOT);
@@ -68,26 +69,26 @@ cfg.commitNote = 'builtFromCommit is the commit whose tree produced these artifa
   + 'this file is the one immediately after it (a file cannot embed its own commit hash). Both describe the '
   + 'same released bytes; verify with: git show ' + commit + ':build/core.js';
 delete cfg.releaseCommit;
-writeFileSync(CFG, JSON.stringify(cfg, null, 2) + '\n');
 
 // The README is the instruction we give people for checking that the app they loaded is the app we
 // published. It was updated by hand and drifted, so it named hashes that no longer matched anything live:
 // a customer following it correctly would conclude the genuine app was wrong. Anything that states a hash
 // has to be written by the same step that verified it.
-for (const rel of ['release/README.md', 'bitcard-permanence-runbook.md']) {
-  let p, txt;
-  try { p = new URL(rel, ROOT); txt = readFileSync(p, 'utf8'); } catch (e) { console.log('  (no ' + rel + ', skipped)'); continue; }
-  const before = txt;
-  for (const [name, h] of Object.entries(want)) {
-    // replace any 64-hex that currently follows a mention of this artifact, whatever the old value was
-    const src = LOCAL[name].split('/').pop();
-    for (const label of [name, src]) {
-      txt = txt.replace(new RegExp('(' + label.replace('.', '\\.') + '[^\\n]*?)\\b[0-9a-f]{64}\\b', 'g'), '$1' + h);
-      txt = txt.replace(new RegExp('(sha256 of [^\\n]*' + label.replace('.', '\\.') + '[^\\n]*\\n+)[0-9a-f]{64}', 'g'), '$1' + h);
-    }
-  }
-  if (txt !== before) { writeFileSync(p, txt); console.log('  updated hashes in ' + rel); }
+const publications = [];
+{
+  const rel = 'README.md'; // ROOT already IS release/, so release/README.md incorrectly skipped the real file
+  const p = new URL(rel, ROOT);
+  let txt;
+  try{ txt = readFileSync(p, 'utf8'); }
+  catch(e){ console.error('REFUSING: mandatory publication file is missing: '+rel); process.exit(1); }
+  try{ txt = rewriteReadmeHashes(txt, want, LOCAL); }
+  catch(e){ console.error('REFUSING: '+e.message); process.exit(1); }
+  publications.push({ rel, p, txt });
 }
+
+// Do not write either publication surface until every mandatory input and hash field has been validated.
+writeFileSync(CFG, JSON.stringify(cfg, null, 2) + '\n');
+for(const pub of publications){ writeFileSync(pub.p, pub.txt); console.log('  updated hashes in '+pub.rel); }
 
 console.log('\nEvery live URL serves the built bytes. monitor/expected-hashes.json updated (commit ' + commit + ').');
 console.log('Now run: powershell -File monitor/bitcard-hash-monitor.ps1   (expect OK)');

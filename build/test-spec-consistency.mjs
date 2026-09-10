@@ -10,7 +10,7 @@
 // Run: node test-spec-consistency.mjs
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { RECORD_V1_LEN, RECORD_V2_LEN, CHECKSUM_LEN } from './core.js';
+import { RECORD_V1_LEN, RECORD_V2_LEN, CHECKSUM_LEN, parseAndVerifyCard } from './core.js';
 
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { c ? pass++ : (fail++, console.log('FAIL: ' + n + (d !== undefined ? '\n      ' + d : ''))); };
@@ -46,23 +46,32 @@ for (const p of SPECS) {
   }
 
   // the conformance rules a third party must follow
-  ok(name + ': states both versions stay valid', /both are valid forever|MUST accept both|accepted forever|accept both/i.test(text));
+  ok(name + ': preserves v1 claim/recovery compatibility', /retain v1 (?:parsing|compatibility).{0,80}(?:claim|recovery)|MUST accept both/i.test(text));
   ok(name + ': states new cards must be v2', /MUST be minted as v2|new cards.{0,40}v2/i.test(text));
   ok(name + ': states the v2 checksum must be verified', /MUST verify the v2 checksum|verify the checksum/i.test(text));
 }
 
-// the frozen v2 vector in the published vectors file must match what the code builds
+// the frozen v1 mainnet and v2 vectors in the published vectors file must match what the code parses
 {
   const vp = ['../spec/bitcard-test-vectors.json', '../bitcard-test-vectors.json', '../release/spec/bitcard-test-vectors.json']
     .map(p => fileURLToPath(new URL(p, import.meta.url))).filter(existsSync);
   ok('published test vectors are present', vp.length > 0);
   for (const p of vp) {
     const v = JSON.parse(readFileSync(p, 'utf8'));
+    const r1 = v.cardRecord && v.cardRecord.recordV1Mainnet;
     const r2 = v.cardRecord && v.cardRecord.recordV2;
     const nm = p.split(/[\\/]/).slice(-1)[0];
+    ok(nm + ': publishes a labelled v1 mainnet record vector', !!r1);
+    if (r1) {
+      let parsed = null;
+      try { parsed = parseAndVerifyCard(r1.cardURI); } catch (e) {}
+      ok(nm + ': the published v1 mainnet vector parses with the shipped parser',
+         parsed !== null && parsed.version === 1 && parsed.serial === 4294967122);
+    }
+    ok(nm + ': labels the historical v1 testnet record instead of presenting it as a mainnet example',
+       v.cardRecord && v.cardRecord.recordV1Testnet && v.cardRecord.recordV1Testnet.expectInMainnetBuild === 'reject-network-mismatch');
     ok(nm + ': publishes a v2 record vector', !!r2);
     if (r2) {
-      const { parseAndVerifyCard } = await import('./core.js');
       let parsed = null;
       try { parsed = parseAndVerifyCard(r2.cardURI); } catch (e) {}
       ok(nm + ': the published v2 vector parses with the shipped parser', parsed !== null && parsed.version === 2);

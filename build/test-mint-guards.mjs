@@ -5,8 +5,8 @@
 // before a single card is funded.
 //
 // Run: node test-mint-guards.mjs
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { mkdtempSync, rmSync, existsSync, readdirSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,13 +20,19 @@ const MINT = fileURLToPath(new URL('mint-pilot-csv.mjs', import.meta.url));
 const seg0 = KNOWN_BATCH.segments[0];
 
 // run the mint into a throwaway dir; returns {ok, out}
-function mintInto(count, start){
+function mintInto(count, start, reserve = false){
   const dir = mkdtempSync(join(tmpdir(), 'bitcard-mintguard-'));
+  const ledgerPath = join(dir, 'serial-allocations.json');
   try {
+    if(reserve) writeFileSync(ledgerPath, JSON.stringify({ schema:1, ranges:[{
+      start, end:start+count-1, state:'reserved-for-mint', purpose:'isolated regression fixture'
+    }] }));
     // capture the child's stderr instead of letting refusals print into the suite summary
-    const out = execFileSync(process.execPath, [MINT, String(count), String(start), dir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const env = reserve ? { ...process.env, BITCARD_SERIAL_LEDGER:ledgerPath } : process.env;
+    const out = execFileSync(process.execPath, [MINT, String(count), String(start), dir], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env });
     const wrote = existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith('.csv')).length : 0;
-    return { ok: true, out, wrote, dir };
+    const ledger = reserve ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : null;
+    return { ok: true, out, wrote, dir, ledger };
   } catch (e) {
     const out = String(e.stdout || '') + String(e.stderr || '');
     const wrote = existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith('.csv')).length : 0;
@@ -58,11 +64,48 @@ function mintInto(count, start){
   const r = mintInto(1, 4294000000);
   ok('reserved test-vector serials are refused', !r.ok, r.out.slice(0, 120));
 }
-// a genuinely free range still works, or the guard is just breaking minting
+// an unreserved free range is not permission to mint: reservation must be committed first
 {
   const free = Math.max(...KNOWN_BATCH.segments.map(s => s.end)) + 10000;
   const r = mintInto(2, free);
-  ok('a genuinely free range still mints', r.ok, r.out.slice(-200));
+  ok('an unreserved free range is refused', !r.ok, r.out.slice(-200));
+  ok('the refusal requires pre-reservation', /not pre-reserved|Reserve the exact range/i.test(r.out), r.out.slice(-200));
+}
+// the exact same range succeeds when an isolated ledger pre-reserves it, then becomes allocated before output
+{
+  const free = Math.max(...KNOWN_BATCH.segments.map(s => s.end)) + 20000;
+  const r = mintInto(2, free, true);
+  ok('an exactly pre-reserved free range mints', r.ok, r.out.slice(-200));
+  ok('the reservation is locked as allocated', r.ok && r.ledger.ranges[0].state === 'allocated');
+}
+
+// Two operators/processes can start from different output folders at the same time. Exactly one may consume
+// a shared reservation; the other must see either the exclusive lock or the allocated state.
+{
+  const root = mkdtempSync(join(tmpdir(), 'bitcard-mint-race-'));
+  try{
+    const free = Math.max(...KNOWN_BATCH.segments.map(s => s.end)) + 30000;
+    const ledgerPath = join(root, 'serial-allocations.json');
+    writeFileSync(ledgerPath, JSON.stringify({schema:1,ranges:[{
+      start:free,end:free,state:'reserved-for-mint',purpose:'concurrent regression fixture'
+    }]}));
+    const run = name => new Promise(resolve => {
+      const dir=join(root,name); mkdirSync(dir);
+      const p=spawn(process.execPath,[MINT,'1',String(free),dir],{
+        env:{...process.env,BITCARD_SERIAL_LEDGER:ledgerPath},stdio:['ignore','pipe','pipe']
+      });
+      let out=''; p.stdout.on('data',b=>out+=b); p.stderr.on('data',b=>out+=b);
+      p.on('close',code=>resolve({code,out,dir}));
+    });
+    const results=await Promise.all([run('operator-a'),run('operator-b')]);
+    const winners=results.filter(r=>r.code===0);
+    const csvs=results.flatMap(r=>readdirSync(r.dir).filter(f=>f.endsWith('.csv')));
+    ok('concurrent mints consume one reservation at most once', winners.length===1,
+      results.map(r=>'exit '+r.code+': '+r.out.slice(-120)).join(' | '));
+    ok('concurrent mints produce exactly one secret CSV', csvs.length===1, csvs.join(', '));
+    ok('concurrent loser names the lock or allocated range',
+      results.some(r=>r.code!==0 && /locked|allocated|overlap/i.test(r.out)));
+  }finally{ rmSync(root,{recursive:true,force:true}); }
 }
 
 // ---- the other half: the card table must not be applied to a self-checking record ----

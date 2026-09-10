@@ -26,7 +26,9 @@ let bundle = fs.readFileSync(bnd, 'utf8');
 // Brand fonts, inlined as data: URIs so the app stays ONE self-contained file with no external requests
 // (strict CSP forbids remote fonts; the page must also work from a saved local copy with no network).
 // Latin subsets only. Each file is a variable font covering the weights listed, so 3 files cover the whole UI.
-const FONT_DIR = 'C:/Users/Cameron/OneDrive - Accountant Doctor/Documents/bitcard/site/fonts/';
+// Resolve build inputs from this repository, not from the caller's working directory or a developer's
+// machine. This keeps clean clones, source archives, CI and long-term rebuilds byte-reproducible.
+const FONT_DIR = new URL('./assets/fonts/', import.meta.url);
 const FONTS = [
   { family: 'Archivo',       weight: '600 700', file: 'k3kPo8UDI-1M0wlSV9XAw6lQkqWY8Q82sLydOxI.woff2' },
   { family: 'Inter Tight',   weight: '400 600', file: 'NGSwv5HMAFg6IuGlBNMjxLsH8ag.woff2' },
@@ -34,7 +36,7 @@ const FONTS = [
 ];
 if (template.includes('<!--FONTS-->')) {
   const css = FONTS.map(f => {
-    const b64 = fs.readFileSync(FONT_DIR + f.file).toString('base64');
+    const b64 = fs.readFileSync(new URL(f.file, FONT_DIR)).toString('base64');
     return `@font-face{font-family:'${f.family}';font-style:normal;font-weight:${f.weight};font-display:swap;` +
            `src:url(data:font/woff2;base64,${b64}) format('woff2');` +
            `unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;}`;
