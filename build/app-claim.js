@@ -206,10 +206,10 @@ function sweepErrText(msg){
   return SWEEP_ERR[msg];
 }
 
-const DEST_NETWORK_ERR = 'This is not a Bitcoin-network receiving address. Nothing was sent. Return to Coinbase or your wallet, choose Bitcoin (BTC), select the Bitcoin network, then copy the receiving address. Do not select Lightning, Base, Arbitrum, Solana, Ethereum, or another network. A Bitcoin address may begin with bc1, 1, or 3.';
+const DEST_NETWORK_ERR = 'This is not an on-chain Bitcoin receiving address. Nothing was sent. Return to your wallet or exchange, choose Bitcoin (BTC), select its native on-chain Bitcoin network, then copy the receiving address. This app cannot send through payment channels, token networks, or other blockchains. A Bitcoin address may begin with bc1, 1, or 3.';
 function checkedDestination(raw){
   const value = (raw || '').trim();
-  if(!value) return { error:'Enter your wallet address. In Coinbase or your wallet, choose Bitcoin (BTC) and select the Bitcoin network.' };
+  if(!value) return { error:'Enter your receiving address. In your wallet or exchange, choose Bitcoin (BTC) and select its native on-chain Bitcoin network.' };
   try{
     const a = btc.Address(BTCNET);
     return { dest:a.encode(a.decode(value)) };
@@ -501,7 +501,7 @@ function init(){
   $('retryBal').onclick = ()=>{ if(claimState) run('retryBal', active=>checkClaimBalance(active, claimState)); };
 
   $('genDest').onclick = ()=>{
-    $('destOut').textContent = 'You need somewhere of your own to keep the bitcoin. Two options. If you already use an exchange or an app that holds bitcoin, open it, find Receive, choose Bitcoin (BTC), select the Bitcoin network, and copy the receiving address. Do not choose Lightning, Base, Arbitrum, Solana, Ethereum, or another network. Otherwise install a free bitcoin wallet app, which takes about five minutes. Use a trusted one: fake bitcoin wallets do exist in app stores, so check the app has a long history and many reviews, and it is worth asking someone you trust which one they use. There is no rush at all: the bitcoin stays safe on this card until you move it, so you can close this page and come back another day.';
+    $('destOut').textContent = 'You need somewhere of your own to keep the bitcoin. Two options. If you already use an exchange or an app that holds bitcoin, open it, find Receive, choose Bitcoin (BTC), select its native on-chain Bitcoin network, and copy the receiving address. This app cannot send through payment channels, token networks, or other blockchains. Otherwise install a free bitcoin wallet app, which takes about five minutes. Use a trusted one: fake bitcoin wallets do exist in app stores, so check the app has a long history and many reviews, and it is worth asking someone you trust which one they use. There is no rush at all: the bitcoin stays safe on this card until you move it, so you can close this page and come back another day.';
   };
 
   $('reviewBtn').onclick = ()=> run('reviewBtn', async active=>{

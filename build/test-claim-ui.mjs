@@ -240,13 +240,14 @@ async function claimToReview(net, destination = DEST){
     els.dest.value = value;
     await els.reviewBtn.onclick(); await tick();
     const msg = els.claimOut.textContent;
-    ok('wrong destination ('+name+'): explains Bitcoin network', /Bitcoin-network receiving address/.test(msg) && /select the Bitcoin network/.test(msg), msg.slice(0,180));
+    ok('wrong destination ('+name+'): explains native on-chain Bitcoin', /on-chain Bitcoin receiving address/.test(msg) && /native on-chain Bitcoin network/.test(msg), msg.slice(0,180));
     ok('wrong destination ('+name+'): says nothing was sent', /Nothing was sent/.test(msg));
     ok('wrong destination ('+name+'): exposes no decoder jargon', !/checksum|decode|bech32|base58/i.test(msg), msg);
     ok('wrong destination ('+name+'): leaves Review/Send gates closed', els.confirmRow.classList.contains('hide') && els.bcastBtn.classList.contains('hide'));
   }
   ok('wrong destinations: rejected before any new network request', (net.utxoCount || 0) === requestsBeforeReview, (net.utxoCount || 0)+' vs '+requestsBeforeReview);
   ok('wrong destinations: no transaction was broadcast', (net.postCount || 0) === 0);
+  ok('wrong destinations: customer copy is provider-neutral', !/Coinbase|Lightning|Base|Arbitrum|Solana|Ethereum/.test(els.claimOut.textContent), els.claimOut.textContent);
 }
 
 // Coinbase may issue older but valid mainnet destinations. The guidance names them, so keep acceptance
