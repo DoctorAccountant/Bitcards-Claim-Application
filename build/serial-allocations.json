@@ -31,6 +31,12 @@
       "end": 1299,
       "state": "allocated",
       "purpose": "production batch 2, record v2, SKU BTC-ORG-B002"
+    },
+    {
+      "start": 2000,
+      "end": 2299,
+      "state": "reserved-for-mint",
+      "purpose": "retail batch BTC-B001, record v2: 100 orange, 100 black, 100 white; IDs BTC-B001-2000 through BTC-B001-2299"
     }
   ]
 }
