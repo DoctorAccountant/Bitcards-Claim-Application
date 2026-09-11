@@ -24,12 +24,13 @@ const MOJIBAKE = [
 
 const TEMPLATES = ['template-claim.html', 'template-offline.html', 'template-maker.html', 'template-qc.html'];
 const SOURCES   = ['app-claim.js', 'app-offline.js', 'app-qc.js', 'core.js', 'net.js', 'config.js'];
-const BUILT     = ['claim-app.html', 'offline.html', '../print/qc-tool.html'];
+const BUILT     = ['../app/claim-app.html', '../app/offline.html', '../print/qc-tool.html'];
 
 const readIf = f => { try { return fs.readFileSync(new URL(f, import.meta.url), 'utf8'); } catch (e) { return null; } };
 
 for (const f of [...TEMPLATES, ...SOURCES, ...BUILT]) {
   const s = readIf(f);
+  ok(f + ': required file exists', s !== null);
   if (s === null) continue;
   for (const [seq, label] of MOJIBAKE) {
     ok(f + ': no ' + label, !s.includes(seq));
@@ -39,7 +40,7 @@ for (const f of [...TEMPLATES, ...SOURCES, ...BUILT]) {
 // Templates must be pure ASCII: any glyph belongs in an HTML entity so no editor or shell can corrupt it.
 for (const f of TEMPLATES) {
   const s = readIf(f);
-  if (s === null) continue;
+  if (s === null) continue; // already reported by the required-file check above
   const bad = [...new Set([...s].filter(c => c.charCodeAt(0) > 126))];
   ok(f + ': template is ASCII-only',
      bad.length === 0,
@@ -49,7 +50,7 @@ for (const f of TEMPLATES) {
 // The shipped artifacts must be ASCII-only end to end, which also proves esbuild --charset=ascii ran.
 for (const f of BUILT) {
   const s = readIf(f);
-  if (s === null) continue;
+  if (s === null) continue; // already reported by the required-file check above
   const bad = [...new Set([...s].filter(c => c.charCodeAt(0) > 126))];
   ok(f + ': built artifact is ASCII-only', bad.length === 0,
      bad.length ? 'found: ' + bad.slice(0, 8).map(c => 'U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')).join(' ') : '');
