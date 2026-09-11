@@ -65,16 +65,27 @@ ok('QC manifest available to source real cards (set BITCARD_MANIFEST)', man !== 
 
 if (man && bundle) {
   // sample across the whole printed range, including both ends
-  const idx = [0, 1, Math.floor(man.cards.length/2), man.cards.length-2, man.cards.length-1];
+  // A one-card proof manifest is legitimate. Keep every sample index in range and remove duplicates;
+  // otherwise the post-deploy gate crashes while trying to read card -1 or card 1 instead of testing it.
+  const idx = [...new Set([0, 1, Math.floor(man.cards.length/2), man.cards.length-2, man.cards.length-1]
+    .filter(i => i >= 0 && i < man.cards.length))];
   let loaded = 0, routes = 0;
   for (const i of idx) {
     const c = man.cards[i];
     const els = boot('#' + c.recordB64);          // exactly what scanning the card's QR produces
-    if (new RegExp('card loaded \\(No\\. ' + c.serial + '\\)').test(els.cardStatus.textContent)) loaded++;
-    if (!els.pathGive.disabled && !els.pathClaim.disabled && !els.pathBal.disabled) routes++;
+    const version = Buffer.from(c.recordB64.replace(/-/g,'+').replace(/_/g,'/'), 'base64')[0];
+    const exactLoaded = new RegExp('card loaded \\(No\\. ' + c.serial + '\\)').test(els.cardStatus.textContent);
+    // A deliberately burned/unissued v1 proof card is recovery-only because it is absent from the issued
+    // table. That is a valid, intentional state: its serial is still shown and Claim/Balance remain open,
+    // but Give must stay closed because an unknown v1 record has no checksum.
+    const recoveryOnly = version === 1 && els.cardChip.textContent === 'No. ' + c.serial &&
+      /legacy card code/.test(els.cardStatus.textContent);
+    if (exactLoaded || recoveryOnly) loaded++;
+    if (!els.pathClaim.disabled && !els.pathBal.disabled &&
+        (exactLoaded ? !els.pathGive.disabled : recoveryOnly && els.pathGive.disabled)) routes++;
   }
   ok('real cards load from their own QR fragment (' + loaded + '/' + idx.length + ')', loaded === idx.length);
-  ok('real cards enable all three routes (' + routes + '/' + idx.length + ')', routes === idx.length);
+  ok('real cards expose exactly the routes allowed for their record (' + routes + '/' + idx.length + ')', routes === idx.length);
 
   // and a one-character typo of a real card must be refused by the LIVE app
   const c0 = man.cards[0];
@@ -88,10 +99,13 @@ if (man && bundle) {
     const els = boot('#' + bad);
     // safe outcomes: refused outright, or it decoded to the SAME card (harmless)
     const sameCard = new RegExp('No\\. ' + c0.serial + '\\)').test(els.cardStatus.textContent);
-    const blocked = els.pathGive.disabled && els.pathClaim.disabled;
-    if (blocked || sameCard) refused++;
+    // Claim intentionally remains open for structurally valid unknown v1 records because someone holding
+    // both halves must always be able to recover. The safety invariant is that a changed record can never
+    // be newly funded: Give is disabled unless the mutation still decodes to the exact same card.
+    const blockedForFunding = els.pathGive.disabled;
+    if (blockedForFunding || sameCard) refused++;
   }
-  ok('typos of a real card are refused by the LIVE app (' + refused + '/' + tried + ')', refused === tried);
+  ok('typos cannot fund a different card in the LIVE app (' + refused + '/' + tried + ')', refused === tried);
 }
 
 console.log('\n' + (fail === 0 ? 'LIVE REAL CARDS OK (' + pass + ' passed)' : 'LIVE REAL CARDS FAILED (' + fail + ' failures)'));
