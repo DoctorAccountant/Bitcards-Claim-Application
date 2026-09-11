@@ -1,4 +1,4 @@
-// Reproduce both released HTML files while running from an unrelated directory. This catches build
+// Reproduce every released HTML file while running from an unrelated directory. This catches build
 // inputs that accidentally point at a developer's home folder or depend on the current directory.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -37,7 +37,8 @@ const temp = mkdtempSync(join(tmpdir(), 'bitcard-portable-build-'));
 try {
   for (const target of [
     ['template-claim.html', 'app-claim.bundle.js', '../app/claim-app.html', 'claim-app.html'],
-    ['template-offline.html', 'app-offline.bundle.js', '../app/offline.html', 'offline.html']
+    ['template-offline.html', 'app-offline.bundle.js', '../app/offline.html', 'offline.html'],
+    ['template-qc.html', 'app-qc.bundle.js', '../print/qc-tool.html', 'qc-tool.html']
   ]) {
     const [template, bundle, released, outputName] = target;
     const output = join(temp, outputName);
@@ -56,4 +57,4 @@ try {
   rmSync(temp, { recursive: true, force: true });
 }
 
-console.log('PASS portable clean build: repository inputs only; both released artifacts reproduced byte for byte');
+console.log('PASS portable clean build: repository inputs only; all released artifacts reproduced byte for byte');

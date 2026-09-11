@@ -24,7 +24,7 @@
 </head>
 <body>
   <h1>Bitcard QC / ceremony tool</h1>
-  <p class="sub">Verifies each sealed card reproduces the key in its QR, before it ships (spec &sect;2a). Spec v0.4.</p>
+  <p class="sub">Verifies each physical card's printed Part 1 reproduces the key in its QR before the scratch panel is applied (spec &sect;2a). Spec v0.4.</p>
   <div class="note">&#x2713; This tool is KEYLESS: it contains no maker private key and cannot create or sign cards. It can run on a separate station from the maker tool. Run it offline.</div>
 
   <div class="panel">
@@ -43,13 +43,13 @@
   </div>
 
   <div class="panel">
-    <h2>2 &middot; Verify a sealed card (&sect;2a)</h2>
-    <p class="sub">Read Part 1 back FROM THE PHYSICAL CARD and scan its QR. The tool re-derives the key from the words and confirms it matches the key in the QR. Only after a MATCH may you destroy the maker copy.</p>
-    <label>Sealed Part 1, re-type the 12 words read off the physical card</label>
+    <h2>2 &middot; Verify the physical print (&sect;2a)</h2>
+    <p class="sub">Before applying the scratch panel, read Part 1 FROM THE PHYSICAL CARD and scan that same card's QR. The tool re-derives the key from the words and confirms it matches the key in the QR. Only after a MATCH may you apply the scratch panel and destroy the maker copy.</p>
+    <label>Part 1, re-type the 12 words read off the physical card</label>
     <input id="sealWords" placeholder="word1 ... word12">
     <label>Card QR content (bitcard:..., scanned from the physical card)</label>
-    <input id="sealUri" placeholder="bitcard:...">
-    <button id="verifyCardBtn">Verify sealed card</button>
+    <input id="sealUri" placeholder="https://bitcards.xyz/app.html#... or bitcard:...">
+    <button id="verifyCardBtn">Verify physical card</button>
     <div id="verifyCardOut" class="mono"></div>
     <button id="destroyBtn" class="sec">Confirm destruction of maker copy (after a MATCH)</button>
     <div id="destroyOut" class="mono"></div>

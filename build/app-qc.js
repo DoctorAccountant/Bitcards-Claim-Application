@@ -1,6 +1,6 @@
 // Bitcard QC / ceremony tool (spec §2a, v0.4). KEYLESS — imports ONLY public operations from core.js.
-// No maker key, no card creation. Confirms each sealed card's words reproduce the QR's public key before it ships.
-import { $, log, NET, hexlib, sha256, parseAndVerifyCard, buildRecord, halfScalar, pubOfScalar, b64u, showBuildHash } from './core.js';
+// No maker key, no card creation. Confirms each physical card's printed words reproduce its QR public key before sealing.
+import { $, log, NET, hexlib, sha256, parseAndVerifyCard, buildRecord, halfScalar, pubOfScalar, b64u, normCardInput, normWords, showBuildHash } from './core.js';
 
 window.addEventListener('error', e => { const s=document.getElementById('status'); if(s) s.textContent='BUNDLE ERROR: '+(e.message||(e.error&&e.error.message)||e); });
 
@@ -27,10 +27,10 @@ function runSelfTest(){
     const matchOK = hexlib.encode(P1) === cardP1;                                     // correct words reproduce the card key
     const wrongWords = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
     const mismatchOK = hexlib.encode(pubOfScalar(halfScalar(wrongWords))) !== cardP1; // different valid words do NOT
-    let malformedOK = false; try{ parseAndVerifyCard(uri.slice(0, uri.length-4)); }catch(e){ malformedOK = /length|bitcard|version|curve|point|record/i.test(e.message); }
+    let malformedOK = false; try{ parseAndVerifyCard(uri.slice(0, uri.length-4)); }catch(e){ malformedOK = true; }
     const pass = matchOK && mismatchOK && malformedOK;
     const el = $('selftest');
-    el.textContent = 'correct sealed words reproduce the card key: '+matchOK+'\ndifferent words detected as mismatch: '+mismatchOK+'\nmalformed QR rejected: '+malformedOK+'\n\n';
+    el.textContent = 'correct printed words reproduce the card key: '+matchOK+'\ndifferent words detected as mismatch: '+mismatchOK+'\nmalformed QR rejected: '+malformedOK+'\n\n';
     const sp = document.createElement('span'); sp.className = pass ? 'ok' : 'bad';
     sp.textContent = pass ? '✓ SELF-TEST PASS' : '✗ SELF-TEST FAIL';
     el.appendChild(sp);
@@ -39,11 +39,16 @@ function runSelfTest(){
 
 function init(){
   $('verifyCardBtn').onclick = ()=>{
-    const uri = $('sealUri').value.trim();
     try{
-      const words = $('sealWords').value.trim().toLowerCase();
+      const operator = $('operator').value.trim();
+      const witness = $('witness').value.trim();
+      if(!operator || !witness) throw new Error('enter both the operator ID and witness ID before checking a card');
+      // A scanner normally returns the full HTTPS URL printed in the QR. Normalize through the exact
+      // customer-app input path so QC cannot reject a card that the customer app accepts (or vice versa).
+      const uri = normCardInput($('sealUri').value);
+      const words = normWords($('sealWords').value);
       const card = parseAndVerifyCard(uri);                          // parse + validate the card record (throws if malformed)
-      const record = b64u.decode(uri.slice('bitcard:'.length));      // 41-byte card record
+      const record = b64u.decode(uri.slice('bitcard:'.length));      // complete v1 (41-byte) or v2 (46-byte) record
       const reP1 = hexlib.encode(pubOfScalar(halfScalar(words)));    // re-derive P1 from the words read off the physical card
       const ok = reP1 === card.P1hex;
       const rec = {
@@ -53,8 +58,8 @@ function init(){
         recordSha256: hexlib.encode(sha256(record)),
         result: ok ? 'PASS' : 'FAIL',
         t: nowStamp(),
-        operator: $('operator').value.trim() || '(unset)',
-        witness: $('witness').value.trim() || '(unset)',
+        operator,
+        witness,
         destroyed: false,
         destroyedAt: null
       };

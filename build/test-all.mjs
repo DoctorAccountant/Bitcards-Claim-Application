@@ -17,6 +17,7 @@ const SUITES = [
   ['test-setup-parity.mjs', [], 'offline setup derives the same address the claim path opens'],
   ['test-claim-ui.mjs',     ['app-claim.bundle.js'],   'claim app money path and state machine'],
   ['test-offline-ui.mjs',   ['app-offline.bundle.js'], 'offline tool gating, setup safety and state'],
+  ['test-qc-ui.mjs',        ['app-qc.bundle.js'],       'physical-card QC accepts printed URLs and exports no words'],
   ['test-recover.mjs',      [], 'python last-resort recovery agrees with the JS derivation'],
   ['test-derivation-differential.mjs', [], 'RANDOM mnemonics agree across the JS and python implementations'],
   ['test-batch-verifier.mjs', [], 'the printed-batch verifier is no more permissive than the app'],

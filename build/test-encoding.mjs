@@ -23,8 +23,8 @@ const MOJIBAKE = [
 ];
 
 const TEMPLATES = ['template-claim.html', 'template-offline.html', 'template-maker.html', 'template-qc.html'];
-const SOURCES   = ['app-claim.js', 'app-offline.js', 'core.js', 'net.js', 'config.js'];
-const BUILT     = ['claim-app.html', 'offline.html'];
+const SOURCES   = ['app-claim.js', 'app-offline.js', 'app-qc.js', 'core.js', 'net.js', 'config.js'];
+const BUILT     = ['claim-app.html', 'offline.html', '../print/qc-tool.html'];
 
 const readIf = f => { try { return fs.readFileSync(new URL(f, import.meta.url), 'utf8'); } catch (e) { return null; } };
 

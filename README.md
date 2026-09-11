@@ -14,6 +14,8 @@ A physical, non-custodial bitcoin gift card. The card carries a key split into t
 | `spec/bitcard-claim-history.md` | Non-normative design history, kept separate so retired signature/status text cannot be mistaken for current requirements. |
 | `spec/bitcard-test-vectors.json` | Frozen test vectors. A correct implementation must reproduce them byte for byte. |
 | `spec/bitcard-signed-transaction-vector.json` | Frozen transaction accepted by an independent Bitcoin Core regtest, including prevout, script, amount, txid and BIP143 digest. |
+| `print/qc-tool.html` | Self-contained, keyless offline manufacturing QC tool. It verifies that the Part 1 printed on each physical card matches that same card's QR and exports the public audit record. |
+| `MINT-RUNBOOK.md` | Required production sequence from serial reservation through minting, printer handoff, physical QC, reconciliation and destruction. |
 | `build/serial-allocations.json` | Versioned serial-range ledger. A production mint requires an exact pre-reserved range and marks it allocated before generating keys. |
 | `build/` | Full source, vendored font inputs, lockfile, production CLI mint, and release gates. Browser minting is deliberately disabled. |
 
@@ -50,9 +52,11 @@ The build reads only files committed in this repository. It does not require fon
 cd build
 npm ci                    # on Windows PowerShell use npm.cmd / npx.cmd
 npx esbuild app-claim.js --bundle --format=iife --minify --charset=ascii --target=es2020 --outfile=app-claim.bundle.js
-node assemble.mjs template-claim.html app-claim.bundle.js claim-app.html
+node assemble.mjs template-claim.html app-claim.bundle.js ../app/claim-app.html
 npx esbuild app-offline.js --bundle --format=iife --minify --charset=ascii --target=es2020 --outfile=app-offline.bundle.js
-node assemble.mjs template-offline.html app-offline.bundle.js offline.html
+node assemble.mjs template-offline.html app-offline.bundle.js ../app/offline.html
+npx esbuild app-qc.js --bundle --format=iife --minify --charset=ascii --target=es2020 --outfile=app-qc.bundle.js
+node assemble.mjs template-qc.html app-qc.bundle.js ../print/qc-tool.html
 node test-all.mjs         # must print ALL SUITES PASSED
 ```
 
@@ -60,11 +64,13 @@ node test-all.mjs         # must print ALL SUITES PASSED
 
 A release is not complete when the local tests pass. Before publishing customer-facing bytes:
 
-1. From a fresh clone of the exact source commit, run `npm ci`, rebuild both HTML files with the commands above, run `node test-all.mjs`, and require the rebuilt hashes to equal the committed files in `app/` byte for byte.
+1. From a fresh clone of the exact source commit, run `npm ci`, rebuild all three HTML files with the commands above, run `node test-all.mjs`, and require the rebuilt files to equal the committed artifacts byte for byte.
 2. Deploy those exact two committed artifacts. Do not rebuild inside the hosting service or copy from another working tree.
 3. Run `node build/release-finish.mjs --commit <source-commit>`. It must verify all four production and mirror URLs, rewrite the published hashes and monitor configuration, and fail on any mismatch.
 4. Run `node build/test-live-real-cards.mjs <manifest>` for every issued-card manifest available to the release operator.
-5. Run the local live-hash monitor once, require a fresh successful heartbeat and a successful scheduled-task result, and confirm the independent GitHub monitor is enabled. Treat a stale monitor as a release failure, not as evidence that the site is unchanged.
+5. Run the local live-hash monitor once, require a fresh successful result, and confirm the hourly GitHub monitor is enabled. The GitHub workflow is the continuous runner; the local scheduled task is supplemental and pauses while its computer sleeps. Treat a stale monitor as no current local verdict, not as evidence that the site is unchanged.
+
+Production minting and printer acceptance are governed by `MINT-RUNBOOK.md`; passing the software release gate does not replace those physical controls.
 
 Do not announce or fund against a release until every applicable step is recorded as successful.
 

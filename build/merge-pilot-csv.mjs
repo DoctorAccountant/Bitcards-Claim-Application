@@ -1,6 +1,6 @@
 // Merge pilot mint batches into ONE printer CSV and independently RE-VERIFY every row end to end.
 // Verification per row: 12 words -> scalar -> public key MUST equal the P1 inside that row's QR record;
-// record serial must equal the CSV serial; network byte must be mainnet; version must be 1.
+// record serial must equal the CSV serial; network byte must be mainnet; the record version/checksum must parse.
 // Output adds an inventory `sku` column (boss scheme LINE-VARIANT-BATCH-SEQUENCE) after qr_url.
 // Usage: node merge-pilot-csv.mjs <out.csv> <skuPrefix> <in1.csv> [in2.csv ...]
 import { secp256k1 as secp } from '@noble/curves/secp256k1';
