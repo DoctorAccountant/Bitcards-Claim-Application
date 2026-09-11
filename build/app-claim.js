@@ -206,6 +206,18 @@ function sweepErrText(msg){
   return SWEEP_ERR[msg];
 }
 
+const DEST_NETWORK_ERR = 'This is not a Bitcoin-network receiving address. Nothing was sent. Return to Coinbase or your wallet, choose Bitcoin (BTC), select the Bitcoin network, then copy the receiving address. Do not select Lightning, Base, Arbitrum, Solana, Ethereum, or another network. A Bitcoin address may begin with bc1, 1, or 3.';
+function checkedDestination(raw){
+  const value = (raw || '').trim();
+  if(!value) return { error:'Enter your wallet address. In Coinbase or your wallet, choose Bitcoin (BTC) and select the Bitcoin network.' };
+  try{
+    const a = btc.Address(BTCNET);
+    return { dest:a.encode(a.decode(value)) };
+  }catch(e){
+    return { error:DEST_NETWORK_ERR };
+  }
+}
+
 function init(){
   // must be first: a build that cannot reproduce the published reference card never gets to touch words
   if(!frozenVectorGate()) return;
@@ -489,19 +501,23 @@ function init(){
   $('retryBal').onclick = ()=>{ if(claimState) run('retryBal', active=>checkClaimBalance(active, claimState)); };
 
   $('genDest').onclick = ()=>{
-    $('destOut').textContent = 'You need somewhere of your own to keep the bitcoin. Two options. If you already use an exchange or an app that holds bitcoin, open it, find Receive, and copy the address. Otherwise install a free bitcoin wallet app, which takes about five minutes. Use a trusted one: fake bitcoin wallets do exist in app stores, so check the app has a long history and many reviews, and it is worth asking someone you trust which one they use. There is no rush at all: the bitcoin stays safe on this card until you move it, so you can close this page and come back another day.';
+    $('destOut').textContent = 'You need somewhere of your own to keep the bitcoin. Two options. If you already use an exchange or an app that holds bitcoin, open it, find Receive, choose Bitcoin (BTC), select the Bitcoin network, and copy the receiving address. Do not choose Lightning, Base, Arbitrum, Solana, Ethereum, or another network. Otherwise install a free bitcoin wallet app, which takes about five minutes. Use a trusted one: fake bitcoin wallets do exist in app stores, so check the app has a long history and many reviews, and it is worth asking someone you trust which one they use. There is no rush at all: the bitcoin stays safe on this card until you move it, so you can close this page and come back another day.';
   };
 
   $('reviewBtn').onclick = ()=> run('reviewBtn', async active=>{
     if(!claimState){ log('claimOut','Please do Step 1 first (enter your words and tap "Show my bitcoin").','bad'); return; }
     if(cardChanged()){ resetFlowState(); log('claimOut','The card changed. Please start again from Step 1.','bad'); return; }
-    // bech32 is case insensitive, so an ALL-CAPS address is valid. Canonicalize before use, otherwise the
-    // exact-string safety check compares the typed casing against the library's lowercase re-encoding and
-    // refuses a perfectly good address.
-    let dest = $('dest').value.trim();
-    try{ const a = btc.Address(BTCNET); dest = a.encode(a.decode(dest)); }catch(e){}
-    if(!dest){ log('claimOut','Enter your wallet address. If you do not have a wallet app yet, tap the button below the box.','bad'); return; }
+    // Every Review attempt replaces the previous draft. Clear it before validating so even autofill or a
+    // programmatic edit that did not fire an input event cannot leave an old Send button active.
+    lastRawTx = null; lastTxId = null; lastReviewedDest = null;
     $('confirmRow').classList.add('hide'); $('bcastBtn').classList.add('hide'); $('bumpBtn').classList.add('hide');
+    if($('destConfirm')) $('destConfirm').checked = false;
+    // Validate before any UTXO or fee request. Raw decoder errors such as "invalid checksum" make a person
+    // think the app is broken; they also fail to explain the common Coinbase mistake of choosing another
+    // network. Bech32 is case insensitive, so a valid ALL-CAPS address is canonicalized here as well.
+    const checked = checkedDestination($('dest').value);
+    if(checked.error){ log('claimOut',checked.error,'bad'); return; }
+    const dest = checked.dest;
     const reviewClaim = claimState;
     let s;
     try{ s = await buildSweep(reviewClaim, dest, 0); }

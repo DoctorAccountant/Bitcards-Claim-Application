@@ -112,6 +112,7 @@ function boot(net = {}){
     // Return a fresh copy, as a real node does. Handing back the same array object let the app's stored
     // snapshot alias the live list, so a mid-flow change mutated both and no comparison could ever see it.
     if(/\/utxo/.test(url)){
+      net.utxoCount = (net.utxoCount || 0) + 1;
       if(net.beforeUtxo) await net.beforeUtxo(url,opts);
       return { ok:true, status:200, json:async()=>utxos.map(u=>({ ...u, status:{ ...u.status } })) };
     }
@@ -206,16 +207,55 @@ const utxo = (v,conf)=>({ txid:'b'.repeat(64), vout:0, value:v, status:{confirme
 // address (hash160 of the secp256k1 generator), unrelated to any card.
 const DEST = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
 const DEST_SPK = '0014751e76e8199196d454941c45d1b3a323f1433bd6';   // what the paying output MUST contain
-async function claimToReview(net){
-  const { els } = boot(net || { utxos:[utxo(200000,true)] });
+async function claimReady(net){
+  const activeNet = net || { utxos:[utxo(200000,true)] };
+  const { els } = boot(activeNet);
   els.cardUri.value = CARD_VEC; els.cardUri.dispatch('input');
   els.pathClaim.onclick();
   els.claimP1.value = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
   els.claimP2.value = 'legal winner thank year wave sausage worth useful legal winner thank yellow';
   els.showBtn.onclick(); await tick(150);
-  els.dest.value = DEST;
+  return { els, net:activeNet };
+}
+async function claimToReview(net, destination = DEST){
+  const { els } = await claimReady(net);
+  els.dest.value = destination;
   els.reviewBtn.onclick(); await tick(150);
   return els;
+}
+
+// Coinbase and wallets can offer several networks for an asset. Wrong-network strings must be rejected
+// before another UTXO/fee request, with human instructions rather than a decoder's "invalid checksum".
+{
+  const net = { utxos:[utxo(200000,true)] };
+  const { els } = await claimReady(net);
+  const requestsBeforeReview = net.utxoCount || 0;
+  const wrongNetworks = [
+    ['Ethereum / Base / Arbitrum', '0x1111111111111111111111111111111111111111'],
+    ['Lightning invoice', 'lnbc10u1p0exampleinvoice'],
+    ['Solana address', 'So11111111111111111111111111111111111111112'],
+    ['Bitcoin testnet', 'tb1q6h6zqgr7pzgf4e2j86f2v4m60r5p0wqrxddllm'],
+  ];
+  for(const [name, value] of wrongNetworks){
+    els.dest.value = value;
+    await els.reviewBtn.onclick(); await tick();
+    const msg = els.claimOut.textContent;
+    ok('wrong destination ('+name+'): explains Bitcoin network', /Bitcoin-network receiving address/.test(msg) && /select the Bitcoin network/.test(msg), msg.slice(0,180));
+    ok('wrong destination ('+name+'): says nothing was sent', /Nothing was sent/.test(msg));
+    ok('wrong destination ('+name+'): exposes no decoder jargon', !/checksum|decode|bech32|base58/i.test(msg), msg);
+    ok('wrong destination ('+name+'): leaves Review/Send gates closed', els.confirmRow.classList.contains('hide') && els.bcastBtn.classList.contains('hide'));
+  }
+  ok('wrong destinations: rejected before any new network request', (net.utxoCount || 0) === requestsBeforeReview, (net.utxoCount || 0)+' vs '+requestsBeforeReview);
+  ok('wrong destinations: no transaction was broadcast', (net.postCount || 0) === 0);
+}
+
+// Coinbase may issue older but valid mainnet destinations. The guidance names them, so keep acceptance
+// pinned for both legacy P2PKH (1...) and wrapped-SegWit/P2SH (3...).
+{
+  const one = await claimToReview(undefined, '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa');
+  ok('mainnet destination beginning 1 is accepted', /Nothing has been sent yet/.test(one.claimOut.textContent), one.claimOut.textContent.slice(0,120));
+  const three = await claimToReview(undefined, '3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy');
+  ok('mainnet destination beginning 3 is accepted', /Nothing has been sent yet/.test(three.claimOut.textContent), three.claimOut.textContent.slice(0,120));
 }
 {
   const els = await claimToReview();
