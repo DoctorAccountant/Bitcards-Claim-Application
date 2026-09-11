@@ -34,11 +34,13 @@ function makeCard(serial){
 }
 
 // Build a batch, optionally corrupting it, and return the verifier's verdict.
-function verdict(name, mutate){
+function verdict(name, mutate, schema = 'mint'){
   const cards = [1,2,3].map(makeCard);
   if (mutate) mutate(cards);
-  const header = ['serial', ...Array.from({length:12},(_,i)=>'word_'+(i+1)), 'qr_url'].join(',');
-  const csv = header + '\r\n' + cards.map(c => [c.serial, ...c.words, c.qrUrl].join(',')).join('\r\n') + '\r\n';
+  const csv = schema === 'printer'
+    ? ['our_key,qr,id', ...cards.map(c => [c.words.join(' '), c.qrUrl, 'BTC-B001-' + c.serial].join(','))].join('\r\n') + '\r\n'
+    : [['serial', ...Array.from({length:12},(_,i)=>'word_'+(i+1)), 'qr_url'].join(','),
+       ...cards.map(c => [c.serial, ...c.words, c.qrUrl].join(','))].join('\r\n') + '\r\n';
   const man = { network:'MAINNET', count:cards.length,
                 cards: cards.map(c => ({ serial:c.serial, p1Hex:c.p1Hex, recordB64:c.recordB64, qrUrl:c.qrUrl })) };
   const cp = join(dir, name + '.csv'), mp = join(dir, name + '-QC-manifest.json');
@@ -50,6 +52,11 @@ function verdict(name, mutate){
 
 // baseline: an honest batch MUST pass, or every negative result below is meaningless
 ok('an honest batch is accepted', verdict('honest', null).accepted);
+ok('an honest three-variable printer file is accepted', verdict('printer-honest', null, 'printer').accepted);
+ok('three-variable printer file rejects a wrong valid key',
+   !verdict('printer-swapped', cs => { cs[0].words = cs[1].words.slice(); }, 'printer').accepted);
+ok('three-variable printer file rejects an ID that does not end in a serial',
+   !verdict('printer-bad-id', cs => { cs[0].serial = 'not-a-number'; }, 'printer').accepted);
 
 // the exact corruption from the review: one extra base64url char -> 42-byte record
 ok('rejects a record with one appended character (42 bytes)',

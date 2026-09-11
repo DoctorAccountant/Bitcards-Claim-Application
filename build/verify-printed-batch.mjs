@@ -7,6 +7,8 @@
 // implementation that the shipped app now uses, and that implementation is pinned to published vectors.
 //
 // Prints COUNTS ONLY. The words never reach stdout, a log, or an error message.
+// Accepts either the canonical mint schema (serial, word_1..word_12, qr_url) or the printer's
+// three-variable schema (our_key, qr, id), where id ends with the embedded decimal serial.
 // Run: node verify-printed-batch.mjs <printer.csv> <QC-manifest.json>
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -33,17 +35,27 @@ const byserial = new Map(man.cards.map(c => [c.serial, c]));
 
 const lines = csv.trim().split(/\r?\n/);
 const head = lines.shift().split(',');
-const wi = head.indexOf('word_1'), qi = head.indexOf('qr_url');
-if (wi < 0 || qi < 0) { console.error('REFUSING: unexpected CSV header'); process.exit(1); }
+const wi = head.indexOf('word_1'), ki = head.indexOf('our_key');
+const qi = head.indexOf('qr_url') >= 0 ? head.indexOf('qr_url') : head.indexOf('qr');
+const si = head.indexOf('serial'), ii = head.indexOf('id');
+if ((wi < 0 && ki < 0) || qi < 0 || (si < 0 && ii < 0)) { console.error('REFUSING: unexpected CSV header'); process.exit(1); }
 
 let rows = 0, wordsMatchQR = 0, qrMatchManifest = 0, serialInRecord = 0, mainnet = 0, badSerials = [];
 const p1s = new Set();
 for (const line of lines) {
   const c = line.split(',');
-  const serial = Number(c[0]);
-  const words = c.slice(wi, wi + 12).join(' ');
-  const url = c[qi];
   rows++;
+  let serial;
+  if(si >= 0) serial = Number(c[si]);
+  else {
+    const match = String(c[ii] || '').match(/-(\d+)$/);
+    if(!match){ badSerials.push('(bad id)'); continue; }
+    serial = Number(match[1]);
+  }
+  if(!Number.isSafeInteger(serial) || serial < 1){ badSerials.push('(bad serial)'); continue; }
+  if(ii >= 0 && !String(c[ii] || '').endsWith('-' + serial)){ badSerials.push(serial); continue; }
+  const words = ki >= 0 ? c[ki] : c.slice(wi, wi + 12).join(' ');
+  const url = c[qi];
   try {
     // production decode: normCardInput + parseAndVerifyCard, byte for byte what the app does
     const parsed = parseAndVerifyCard(normCardInput(url));
@@ -70,7 +82,7 @@ console.log('serial embedded in record:  ' + serialInRecord + '/' + rows + '  ' 
 console.log('mainnet network byte:       ' + mainnet + '/' + rows + '  ' + all(mainnet));
 console.log('distinct card keys:         ' + p1s.size + '/' + rows + '  ' + all(p1s.size));
 if (badSerials.length) console.log('SERIALS THAT FAILED: ' + badSerials.join(', '));
-const good = wordsMatchQR === rows && qrMatchManifest === rows && serialInRecord === rows && mainnet === rows && p1s.size === rows;
+const good = badSerials.length === 0 && wordsMatchQR === rows && qrMatchManifest === rows && serialInRecord === rows && mainnet === rows && p1s.size === rows;
 console.log('\n' + (good
   ? 'BATCH VERIFIED against the current anchored derivation. These printed cards open correctly.'
   : 'BATCH FAILED. Do not ship these cards.'));
