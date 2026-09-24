@@ -1,35 +1,66 @@
-# Bitcard: open standard + claim app (v0.4)
+# Bitcard
 
-A physical, non-custodial bitcoin gift card. The card carries a key split into two halves of 12 words: one sealed under a scratch panel at manufacture, one written by the buyer at setup. Only someone holding both halves can spend. The issuer never holds a complete key and never touches funds. The two word-halves contain everything needed to reconstruct the key without any Bitcard service, provided the words, open specification and compatible recovery software are preserved. The included tool produces a standard private key (WIF), which a wallet then **sweeps** using the card's P2WPKH/native-SegWit source type (Sweep, not Import).
+**A physical bitcoin gift card that nobody, including Bitcard, can spend alone.**
+
+[![Live artifact hash monitor](https://github.com/deFox22/bitcard/actions/workflows/live-hash-monitor.yml/badge.svg)](https://github.com/deFox22/bitcard/actions/workflows/live-hash-monitor.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+Bitcard is an open standard and a set of self-contained tools for a card that carries a bitcoin key split into two halves of 12 words. One half is sealed under a scratch panel at the factory. The other half is generated on the buyer's own device and written on the card by hand. Only the person holding the physical card with both halves can move the bitcoin. Bitcard never holds a complete key and never touches funds.
+
+Everything needed to recover the bitcoin is on the card and in this repository. If the company, the website and the app all disappeared, the two word-halves plus the open specification would still reconstruct the key.
+
+Live site: https://bitcards.xyz. Hosted app: https://bitcards.xyz/app.html. Offline tool: https://bitcards.xyz/offline.html.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["Factory\nPart 1 (12 words) sealed under scratch panel\nPublic key P1 printed in the QR"] --> B["Buyer setup\nPart 2 (12 words) generated on the buyer's device\nDeposit address derived from P1 + Part 2"]
+    B --> C["Buyer funds the address\nand writes Part 2 on the card"]
+    C --> D["Recipient claims\nScratch Part 1, read Part 2\nApp or offline tool combines both halves\nand sweeps to any wallet"]
+```
+
+The two halves are ordinary BIP39 phrases. Each becomes a secp256k1 scalar; the spending key is their sum modulo the curve order, and the funding address is the standard native SegWit (P2WPKH) address of the combined public key. There is no on-chain multisig and no Bitcard server in the money path. The full mechanism, with a worked example from the published test vectors, is in [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md).
+
+## Start here
+
+| If you are | Read |
+|---|---|
+| Holding a card and want your bitcoin | [recover/recover.html](recover/recover.html) (plain-English instructions, works offline), then either the hosted app, the offline tool or `recover/bitcard-recover.py`. Summary in [Recover without Bitcard](#recover-funds-without-any-bitcard-service) below. |
+| A developer or reviewer checking the code | [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md), then [spec/bitcard-claim-spec.md](spec/bitcard-claim-spec.md), then [Rebuild it yourself](#rebuild-it-yourself). The test gate is `node test-all.mjs` in `build/`. |
+| A security researcher | [SECURITY.md](SECURITY.md): threat model, what is and is not protected, how to report. |
+| Operating a print run or a release | [MINT-RUNBOOK.md](MINT-RUNBOOK.md) for manufacturing and [docs/RELEASE.md](docs/RELEASE.md) for publishing the app. |
+| Press or a partner | The media kit at https://bitcards.xyz/media-kit.html and the trust model section below. |
 
 ## What is in this repository
 
 | Path | What it is |
 |---|---|
-| `app/claim-app.html` | The complete claim app: one self-contained HTML file. No external scripts, no server, no accounts. Runs from any host or from a saved local copy. The normal path: scan the card and claim in a couple of taps. |
-| `app/offline.html` | The offline tool, two modes, **no network code** (CSP `connect-src 'none'`): **set up a card** (generates the buyer's words and derives the deposit address on-device from the card's public QR data, so no website is involved in funding) and **open a card** (reconstructs the key as a WIF to sweep with a standard wallet). For anyone who prefers not to depend on a website. Save it and run it offline. |
-| `recover/recover.html` | Plain-English recovery instructions (works offline). |
-| `recover/bitcard-recover.py` | Offline recovery tool, Python standard library only; targets Python 3.7+. Run `python bitcard-recover.py --selftest` on the exact runtime you intend to use. |
-| `spec/bitcard-claim-spec.md` | The normative open standard: key scheme, card record format, flows, sweep rules. |
-| `spec/bitcard-claim-history.md` | Non-normative design history, kept separate so retired signature/status text cannot be mistaken for current requirements. |
-| `spec/bitcard-test-vectors.json` | Frozen test vectors. A correct implementation must reproduce them byte for byte. |
-| `spec/bitcard-signed-transaction-vector.json` | Frozen transaction accepted by an independent Bitcoin Core regtest, including prevout, script, amount, txid and BIP143 digest. |
-| `print/qc-tool.html` | Self-contained, keyless offline manufacturing QC tool. It verifies that the Part 1 printed on each physical card matches that same card's QR and exports the public audit record. |
-| `MINT-RUNBOOK.md` | Required production sequence from serial reservation through minting, printer handoff, physical QC, reconciliation and destruction. |
-| `build/serial-allocations.json` | Versioned serial-range ledger. A production mint requires an exact pre-reserved range and marks it allocated before generating keys. |
-| `build/` | Full source, vendored font inputs, lockfile, production CLI mint, and release gates. Browser minting is deliberately disabled. |
+| `app/claim-app.html` | The complete claim app in one self-contained HTML file. No external scripts, no server, no accounts. Scan the card, enter the words, sweep. |
+| `app/offline.html` | The offline tool. No network code at all (CSP `connect-src 'none'`). Sets up a card (generates Part 2, derives the deposit address on-device) and opens a card (reconstructs the key as a WIF to sweep with any wallet). |
+| `recover/recover.html` | Plain-English recovery instructions for a holder. Works from a saved copy. |
+| `recover/bitcard-recover.py` | Recovery tool in pure Python standard library, Python 3.7 or newer. Run `python bitcard-recover.py --selftest` on the interpreter you intend to use. |
+| `spec/bitcard-claim-spec.md` | The normative open standard: key scheme, card record format, flows, sweep rules, recovery. |
+| `spec/bitcard-test-vectors.json` | Frozen derivation vectors. A correct implementation reproduces them byte for byte. |
+| `spec/bitcard-signed-transaction-vector.json` | A frozen signed sweep transaction accepted by an independent Bitcoin Core regtest node, with prevout, script, amount, txid and BIP143 digest. |
+| `spec/bitcard-claim-history.md` | Non-normative design history, kept separate so retired text is never mistaken for a requirement. |
+| `print/qc-tool.html` | Keyless, offline manufacturing QC tool. Confirms that the words sealed on each physical card match that card's QR, and exports the public audit record. |
+| `MINT-RUNBOOK.md` | The required production sequence: serial reservation, minting, printer handoff, physical QC, reconciliation, destruction of maker copies. |
+| `build/` | All source, the pinned dependency lockfile, vendored fonts, the CLI mint, the serial ledger and 21 test suites. Browser minting is deliberately disabled. |
+| `monitor/` | Hourly integrity monitor that compares the live site to the published hashes, plus a watchdog. |
+| `docs/` | Explanations and procedures that are not part of the normative spec. |
 
 ## The trust model in one paragraph
 
-Cards carry no issuer key and the app verifies no issuer signature (v0.4 removed it deliberately: this is an open, permissionless standard, like BIP39). A card QR is just `base64url` of a public record: 41 bytes (record v1, the 2026 pilot cards) or 46 bytes (record v2, all later cards, which append a 5-byte SHA-256 checksum so a mistyped card code is rejected instead of silently addressing funds to a key nobody holds). Claim and recovery retain both formats. Because v1 cannot check itself, the official apps allow v1 funding/setup only for an exact issued-record match; unknown v1 records remain claimable when their Part 1 words reproduce P1. Funds are protected by the two-half key, not by anything Bitcard controls. Your words never leave your device.
+Cards carry no issuer key and the app verifies no issuer signature. This is an open, permissionless format, like BIP39: anyone may make a compatible card or tool. A card QR is just `base64url` of a public record: 41 bytes for record v1 (the 2026 pilot cards) or 46 bytes for record v2 (all later cards), which appends a 5-byte SHA-256 checksum so a mistyped card code is rejected instead of silently sending funds to a key nobody holds. Claim and recovery accept both formats. Because v1 cannot check itself, the official apps allow funding of a v1 card only when it exactly matches the table of records Bitcard actually issued; unknown v1 records can still be claimed and recovered.
 
-## What you must trust (and what you do not)
+## What you must trust, and what you do not
 
-- **To recover funds: no operating Bitcard service is required.** The two word-halves plus the preserved open method (or the included tool) reconstruct the key offline. You still trust, or independently verify, the recovery implementation, device and destination wallet. Preserve redundant verified copies and periodically test the published vectors; no software or storage medium can honestly be guaranteed for an unlimited future.
-- **To claim via the hosted web app (`bitcards.xyz/app.html`): you trust that you loaded the genuine app from the official address.** Like any web wallet, a compromised host could serve altered code that rebuilds the key inside the page. The published hash and the in-app code fingerprint let you check the program, but the real protection is loading it from a source you trust. This is the normal path, and it carries the same delivery trust as any web wallet or banking site.
-- **To avoid trusting website execution: use the offline key tool** (`app/offline.html`, or `bitcards.xyz/offline.html`). It contains no network code (its CSP is `connect-src 'none'`), reconstructs the key on your device, and hands it to a standard wallet's Sweep. Recommended for anyone who would rather not depend on a website at all. Note the honest limit: served live over HTTPS it is only as trustworthy as its delivery, so **the hosted page refuses word entry until you download it.** Save the file, verify its SHA-256 against the value published here, disconnect from the internet, then open the saved file (word entry unlocks under `file://`).
+- **To recover funds, no Bitcard service is required.** The two word-halves plus the open method (or the included tool) reconstruct the key offline. You still trust, or independently verify, the recovery implementation, your device and your destination wallet.
+- **To claim through the hosted app you trust that you loaded the genuine page.** Like any web wallet, a compromised host could serve altered code. The published hash below and the in-app code fingerprint let you check the program, and the hourly monitor watches the live bytes, but the real protection is loading it from a source you trust.
+- **To avoid trusting a website at all, use the offline tool.** It contains no network code, reconstructs the key on your device and hands it to a standard wallet's Sweep. The hosted copy refuses word entry until you download it: save the file, verify its SHA-256, disconnect, then open it.
 
-This is an **additive two-part key** (the two halves add to one ordinary key), not an on-chain multisig. It gives two-party control before claim and low fees; it does not provide on-chain multisig features (independent signing, timelocks, revocation).
+This is an additive two-part key, not an on-chain multisig. It gives two-party control before claim and ordinary fees. It does not provide multisig features such as independent signing, timelocks or revocation.
 
 ## Verify the released app
 
@@ -40,13 +71,13 @@ sha256 of app/offline.html:
 537a011b908e232dc099d5d637006131b1cf7eaf437b9a3769aad391c0c47ba7
 ```
 
-PowerShell: `Get-FileHash app/claim-app.html` / Linux/macOS: `shasum -a 256 app/claim-app.html`
+PowerShell: `Get-FileHash app/claim-app.html`. Linux and macOS: `shasum -a 256 app/claim-app.html`.
 
-The same file is deployed at https://bitcards.xyz/app.html and must hash identically. The app also displays a runtime fingerprint of its own inline script (open "Is this app genuine?" at the bottom of the page).
+The same files are deployed at https://bitcards.xyz/app.html and https://bitcards.xyz/offline.html and must hash identically. The app also displays a runtime fingerprint of its own inline script (open "Is this app genuine?" at the bottom of the page). The GitHub workflow in `.github/workflows/live-hash-monitor.yml` re-checks the live site every hour against `monitor/expected-hashes.json`.
 
 ## Rebuild it yourself
 
-The build reads only files committed in this repository. It does not require fonts or other assets from a developer's machine.
+The build reads only files committed in this repository. A fresh clone reproduces the released files byte for byte.
 
 ```
 cd build
@@ -60,22 +91,29 @@ node assemble.mjs template-qc.html app-qc.bundle.js ../print/qc-tool.html
 node test-all.mjs         # must print ALL SUITES PASSED
 ```
 
-## Release procedure
-
-A release is not complete when the local tests pass. Before publishing customer-facing bytes:
-
-1. From a fresh clone of the exact source commit, run `npm ci`, rebuild all three HTML files with the commands above, run `node test-all.mjs`, and require the rebuilt files to equal the committed artifacts byte for byte.
-2. Deploy those exact two committed artifacts. Do not rebuild inside the hosting service or copy from another working tree.
-3. Run `node build/release-finish.mjs --commit <source-commit>`. It must verify all four production and mirror URLs, rewrite the published hashes and monitor configuration, and fail on any mismatch.
-4. Run `node build/test-live-real-cards.mjs <manifest>` for every issued-card manifest available to the release operator.
-5. Run the local live-hash monitor once, require a fresh successful result, and confirm the hourly GitHub monitor is enabled. The GitHub workflow is the continuous runner; the local scheduled task is supplemental and pauses while its computer sleeps. Treat a stale monitor as no current local verdict, not as evidence that the site is unchanged.
-
-Production minting and printer acceptance are governed by `MINT-RUNBOOK.md`; passing the software release gate does not replace those physical controls.
-
-Do not announce or fund against a release until every applicable step is recorded as successful.
+The gate runs 21 suites, including a byte-for-byte reproduction check, derivation against the frozen vectors, the frozen signed transaction, the claim and offline user-interface flows, hostile-network and timeout behaviour, entropy guards, record checksums, mint guards and spec-to-code consistency.
 
 ## Recover funds without any Bitcard service
 
-You need both sets of 12 words from the card. Best: run `recover/bitcard-recover.py` (Python standard library only) or open the offline key tool, either of which reconstructs the key on your device with no network. Or re-implement from the spec: each half is BIP39 (English, empty passphrase) turned into a BIP32 master private key used **directly as a scalar** (nonstandard, which is why an ordinary wallet cannot recover from either phrase alone); the spending key is `(d1 + d2) mod n` on secp256k1; the address is P2WPKH of the combined public key. The recovered key is a standard WIF. In Sparrow Sweep, select **P2WPKH / Native SegWit**. In Electrum, enter `p2wpkh:` immediately before the WIF. Before confirming, require the wallet's source address to equal the recovered `bc1q...` address. Keep both halves until the sweep confirms and that address shows zero. Vectors in `spec/` verify any implementation.
+You need both sets of 12 words from the card. Run `recover/bitcard-recover.py` or open the offline tool; either reconstructs the key on your device with no network. Or re-implement from the spec: each half is a BIP39 phrase (English wordlist, empty passphrase) turned into a BIP32 master private key that is used directly as a scalar; the spending key is `(d1 + d2) mod n` on secp256k1; the address is P2WPKH of the combined public key. The result is a standard WIF. Sweep it with a wallet such as Sparrow or Electrum using the native SegWit (P2WPKH) source type. Sweep, do not Import, and confirm the wallet's source address equals the card's funding address before sending.
 
-**Copy this repository freely.** Redundant, periodically verified copies make the recovery design resilient to a website or company disappearing.
+**Copy this repository freely.** Redundant, periodically verified copies are what make the recovery design resilient to a website or company disappearing.
+
+## Project status
+
+- Specification: v0.4, marked DRAFT while the format is exercised in production. The on-wire formats in sections 4.1 and 4.3 are frozen.
+- Deployed release: the hashes above, stamped by `build/release-finish.mjs` and watched hourly.
+- Serial ranges recorded in `build/serial-allocations.json`: 101 to 400 (record v1 pilot), 1000 to 1299 (record v2) and 2000 to 2299 (record v2 retail). Serials are inventory data, not authentication.
+- Independent reviews: an external audit of the testnet build in June 2026 and external security reviews in August and September 2026. Findings and their fixes are recorded in the commit history and in `spec/bitcard-claim-history.md`.
+
+## Release and manufacturing
+
+Publishing the app follows [docs/RELEASE.md](docs/RELEASE.md). Producing cards follows [MINT-RUNBOOK.md](MINT-RUNBOOK.md). Passing the software gate never replaces the physical controls in the runbook, and a batch is not released until a named person signs off on the complete record.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for the threat model, the honest limits and how to report a vulnerability.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
