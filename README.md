@@ -9,7 +9,7 @@ Bitcard is an open standard and a set of self-contained tools for a card that ca
 
 Everything needed to recover the bitcoin is on the card and in this repository. If the company, the website and the app all disappeared, the two word-halves plus the open specification would still reconstruct the key.
 
-Live site: https://bitcards.xyz. Hosted app: https://bitcards.xyz/app.html. Offline tool: https://bitcards.xyz/offline.html.
+Live site: https://bitcards.xyz. Hosted app: https://bitcardssetup.com/app.html. Offline tool: https://bitcardssetup.com/offline.html.
 
 ## How it works
 
@@ -73,7 +73,7 @@ sha256 of app/offline.html:
 
 PowerShell: `Get-FileHash app/claim-app.html`. Linux and macOS: `shasum -a 256 app/claim-app.html`.
 
-The same files are deployed at https://bitcards.xyz/app.html and https://bitcards.xyz/offline.html and must hash identically. The app also displays a runtime fingerprint of its own inline script (open "Is this app genuine?" at the bottom of the page). The GitHub workflow in `.github/workflows/live-hash-monitor.yml` re-checks the live site every hour against `monitor/expected-hashes.json`.
+The same files are deployed at https://bitcardssetup.com/app.html and https://bitcardssetup.com/offline.html and must hash identically. The app also displays a runtime fingerprint of its own inline script (open "Is this app genuine?" at the bottom of the page). The GitHub workflow in `.github/workflows/live-hash-monitor.yml` re-checks the live site every hour against `monitor/expected-hashes.json`.
 
 ## Rebuild it yourself
 

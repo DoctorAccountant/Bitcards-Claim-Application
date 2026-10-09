@@ -11,7 +11,7 @@ let pass = 0, fail = 0;
 const ok = (n, c, d) => { c ? pass++ : (fail++, console.log('FAIL: ' + n + (d !== undefined ? '\n      ' + d : ''))); };
 
 const MAN = process.argv[2] || process.env.BITCARD_MANIFEST || 'C:/Users/Cameron/bitcard-mint/bitcard-print-300-QC-manifest.json';
-const LIVE = 'https://bitcards.xyz/app.html';
+const LIVE = 'https://bitcardssetup.com/app.html';
 
 // ---- 1. the live page is the page we built ----
 let html;

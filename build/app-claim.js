@@ -35,7 +35,7 @@ function frozenVectorGate(){
     box.className = 'warn';
     box.textContent = 'This copy of the app is not safe to use. It failed its built-in check against the published '
       + 'reference card, which means it would work out the wrong bitcoin address. Nothing has been lost and your card is fine. '
-      + 'Do not enter any words here. Open the app again from the official address bitcards.xyz, and if this message appears '
+      + 'Do not enter any words here. Open the app again from the official address bitcardssetup.com, and if this message appears '
       + 'again, use the offline tool or the published recovery method instead. [CORE-01]';
     const wrap = document.querySelector('.wrap'); if(wrap) wrap.insertBefore(box, wrap.firstChild);
   }catch(e){}
@@ -191,8 +191,8 @@ async function buildSweep(c, dest, minRate, utxosOverride){
 const SWEEP_ERR = {
   empty:       'This card has no bitcoin on it to send. Nothing was sent.',
   dust:        'After the network fee, what would be left is below the tiny minimum the bitcoin network accepts. Nothing was sent, the bitcoin is still on the card. Try again when fees are lower.',
-  feecap:      'The fee for this payment is above our safety limit right now. Nothing was sent, the bitcoin is still on the card. Try again in a few hours [FEE-01], or use the offline tool at bitcards.xyz/offline.html and sweep with your own wallet, where you choose the fee yourself.',
-  feehalf:     'Right now the network fee would eat more than half of what is on this card, so we stopped. Nothing was sent, the bitcoin is still on the card. Fees change hour to hour [FEE-02]: try again later, or use the offline tool at bitcards.xyz/offline.html and sweep with your own wallet, where you choose the fee yourself.',
+  feecap:      'The fee for this payment is above our safety limit right now. Nothing was sent, the bitcoin is still on the card. Try again in a few hours [FEE-01], or use the offline tool at bitcardssetup.com/offline.html and sweep with your own wallet, where you choose the fee yourself.',
+  feehalf:     'Right now the network fee would eat more than half of what is on this card, so we stopped. Nothing was sent, the bitcoin is still on the card. Fees change hour to hour [FEE-02]: try again later, or use the offline tool at bitcardssetup.com/offline.html and sweep with your own wallet, where you choose the fee yourself.',
   destmismatch:'Safety check failed, the address did not match. Nothing was sent. Re-check your wallet address.',
   nofee:       'We could not check the current bitcoin network fee, so we stopped rather than guess. Nothing was sent, the bitcoin is still on the card. Try again in a few minutes [FEE-03].'
 };
@@ -202,7 +202,7 @@ const SWEEP_ERR = {
 // inputs and fee. Raw internal wording used to reach the customer here with no way forward.
 function sweepErrText(msg){
   const many = /^toomanyinputs:(\d+)/.exec(msg || '');
-  if(many) return 'This card has received an unusually large number of separate payments (' + many[1] + '), more than this page will combine into one. Nothing was sent and none of the bitcoin is lost. To move it, use the offline tool at bitcards.xyz/offline.html: it works out the card key on your own device and hands it to a wallet such as Sparrow or Electrum, which can sweep the payments and let you choose the fee [UTXO-02].';
+  if(many) return 'This card has received an unusually large number of separate payments (' + many[1] + '), more than this page will combine into one. Nothing was sent and none of the bitcoin is lost. To move it, use the offline tool at bitcardssetup.com/offline.html: it works out the card key on your own device and hands it to a wallet such as Sparrow or Electrum, which can sweep the payments and let you choose the fee [UTXO-02].';
   return SWEEP_ERR[msg];
 }
 

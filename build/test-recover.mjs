@@ -1,4 +1,4 @@
-// The Python recovery tool is the LAST resort: it is what still works when bitcards.xyz, the apps and the
+// The Python recovery tool is the LAST resort: it is what still works when bitcardssetup.com, the apps and the
 // company are gone. Nothing else in the suite touched it, so it could silently stop matching the JS
 // derivation, or stop running at all, and we would only find out from a customer who cannot reach their coins.
 //

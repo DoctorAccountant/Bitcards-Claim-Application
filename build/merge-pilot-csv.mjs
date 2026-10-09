@@ -45,7 +45,7 @@ for (const f of ins) {
     if (parsed.serial !== serial) throw new Error('serial mismatch: csv ' + serial + ' vs record ' + parsed.serial);
     const p1FromWords = hex.encode(secp.getPublicKey(hex.decode(halfScalar(words.join(' ')).toString(16).padStart(64, '0')), true));
     if (p1FromWords !== p1InQR) throw new Error('serial ' + serial + ': WORDS DO NOT MATCH QR');
-    if (!qrUrl.startsWith('https://bitcards.xyz/app.html#')) throw new Error('serial ' + serial + ': unexpected URL');
+    if (!qrUrl.startsWith('https://bitcardssetup.com/app.html#')) throw new Error('serial ' + serial + ': unexpected URL');
     if (serials.has(serial)) throw new Error('duplicate serial ' + serial);
     if (p1s.has(p1InQR)) throw new Error('duplicate key at serial ' + serial);
     serials.add(serial); p1s.add(p1InQR);
@@ -61,7 +61,7 @@ const csv = header + '\r\n' + body.join('\r\n') + '\r\n';
 writeFileSync(out, csv, { flag: 'wx' });
 
 const manifest = {
-  network: 'MAINNET', appUrl: 'https://bitcards.xyz/app.html', count: rows.length, skuPrefix,
+  network: 'MAINNET', appUrl: 'https://bitcardssetup.com/app.html', count: rows.length, skuPrefix,
   cards: rows.map((r, i) => ({ serial: r.serial, sku: skuPrefix + '-' + String(i + 1).padStart(6, '0'), p1Hex: r.p1Hex, recordB64: r.recordB64, qrUrl: r.qrUrl }))
 };
 const manPath = out.replace(/\.csv$/i, '') + '-QC-manifest.json';

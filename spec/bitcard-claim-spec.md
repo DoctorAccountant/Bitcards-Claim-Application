@@ -101,7 +101,7 @@ The QR encodes:
 ```
 <APP_URL> + "#" + base64url_nopad( record(41 or 46) )
 ```
-where `APP_URL` is the official app address baked into the QR. For retail usability this is a short **domain** (currently `https://bitcards.xyz/app.html`), not a content-addressed gateway URL. One scan opens the app with the card record in the URL **fragment**; the app reads `location.hash`, prepends `bitcard:`, and validates as in §4.3.
+where `APP_URL` is the official app address baked into the QR. For retail usability this is a short **domain** (currently `https://bitcardssetup.com/app.html`), not a content-addressed gateway URL. One scan opens the app with the card record in the URL **fragment**; the app reads `location.hash`, prepends `bitcard:`, and validates as in §4.3.
 
 The domain is a **convenience pointer, not an independent trust anchor.** Each released app file has a published SHA-256 and displays a fingerprint of its inline code (§5.7). A release is not allowed to claim a GitHub, archive.org, IPFS, Pinata, or Arweave mirror until its exact identifier has actually been published, independently fetched, and recorded. Those services improve availability but do not guarantee indefinite retention. If the domain fails, recovery remains possible only while the two word-halves, this specification or an equivalent implementation, and compatible Bitcoin software remain available.
 

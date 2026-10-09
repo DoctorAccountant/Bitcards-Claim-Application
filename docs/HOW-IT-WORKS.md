@@ -74,7 +74,7 @@ python recover/bitcard-recover.py --part1 "abandon abandon abandon abandon aband
 
 ## What is printed in the QR
 
-The QR encodes `https://bitcards.xyz/app.html#<base64url of the record>`. The fragment after `#` is never sent to a server, so opening the link tells the host nothing about which card was scanned. The record itself:
+The QR encodes `https://bitcardssetup.com/app.html#<base64url of the record>`. The fragment after `#` is never sent to a server, so opening the link tells the host nothing about which card was scanned. The record itself:
 
 | Offset | Bytes | Field | Value |
 |---|---|---|---|

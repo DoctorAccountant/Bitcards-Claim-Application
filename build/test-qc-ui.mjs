@@ -37,7 +37,7 @@ for (const forbidden of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon', 
   ok('bundle excludes network capability: ' + forbidden, !source.includes(forbidden));
 }
 
-const fullUrl = 'https://bitcards.xyz/app.html#AQABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHs';
+const fullUrl = 'https://bitcardssetup.com/app.html#AQABAQPZAvNfVg4EcMYzE8c2kWjZ198tSb8pX9n7fLEJzO4ElAAAAHs';
 const part1 = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
 // Missing identities must fail before a result can enter the audit.

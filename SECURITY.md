@@ -21,7 +21,7 @@ We aim to acknowledge reports within a few days. Fixes ship as a new release wit
 
 ## Honest limits
 
-- **The hosted page is a web wallet.** Claiming at `bitcards.xyz/app.html` trusts that the page you loaded is the genuine one. A compromised host or CDN could serve altered code. The published hash, the in-app fingerprint and the hourly monitor make substitution detectable; they do not make it impossible. The offline tool exists for people who do not want that trust.
+- **The hosted page is a web wallet.** Claiming at `bitcardssetup.com/app.html` trusts that the page you loaded is the genuine one. A compromised host or CDN could serve altered code. The published hash, the in-app fingerprint and the hourly monitor make substitution detectable; they do not make it impossible. The offline tool exists for people who do not want that trust.
 - **A counterfeit card is a counterfeit card.** Cards are not signed (the format is deliberately permissionless). A fake card could carry a QR pointing at an attacker's page. Trusted distribution and tamper-evident packaging are the mitigation, exactly as for a paper voucher.
 - **It is a bearer instrument.** Whoever holds the physical card and opens both seals controls the funds.
 - **Part 2 alone can watch, not spend.** Someone who copies Part 2 and reads the public QR can compute the funding address and see its balance. They still cannot spend without Part 1.

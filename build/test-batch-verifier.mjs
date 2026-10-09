@@ -30,7 +30,7 @@ function makeCard(serial){
   rec[0]=1; rec[1]=0; rec[2]=1; rec[3]=1; rec.set(P1, 4);
   rec[37]=(serial>>>24)&255; rec[38]=(serial>>>16)&255; rec[39]=(serial>>>8)&255; rec[40]=serial&255;
   return { serial, words:m.split(' '), p1Hex:hex.encode(P1), recordB64:b64u.encode(rec),
-           qrUrl:'https://bitcards.xyz/app.html#'+b64u.encode(rec) };
+           qrUrl:'https://bitcardssetup.com/app.html#'+b64u.encode(rec) };
 }
 
 // Build a batch, optionally corrupting it, and return the verifier's verdict.
@@ -77,20 +77,20 @@ ok('rejects a duplicate card key',
 ok('rejects a testnet network byte in a mainnet batch',
    !verdict('testnet', cs => {
      const rec = b64u.decode(cs[0].qrUrl.slice(cs[0].qrUrl.lastIndexOf('#')+1));
-     rec[1] = 1; cs[0].qrUrl = 'https://bitcards.xyz/app.html#' + b64u.encode(rec);
+     rec[1] = 1; cs[0].qrUrl = 'https://bitcardssetup.com/app.html#' + b64u.encode(rec);
    }).accepted);
 
 ok('rejects an unknown record version',
    !verdict('version', cs => {
      const rec = b64u.decode(cs[0].qrUrl.slice(cs[0].qrUrl.lastIndexOf('#')+1));
-     rec[0] = 9; cs[0].qrUrl = 'https://bitcards.xyz/app.html#' + b64u.encode(rec);
+     rec[0] = 9; cs[0].qrUrl = 'https://bitcardssetup.com/app.html#' + b64u.encode(rec);
    }).accepted);
 
 ok('rejects a P1 that is not a valid curve point',
    !verdict('badpoint', cs => {
      const rec = b64u.decode(cs[0].qrUrl.slice(cs[0].qrUrl.lastIndexOf('#')+1));
      for(let i=4;i<37;i++) rec[i] = 0xff;
-     cs[0].qrUrl = 'https://bitcards.xyz/app.html#' + b64u.encode(rec);
+     cs[0].qrUrl = 'https://bitcardssetup.com/app.html#' + b64u.encode(rec);
    }).accepted);
 
 ok('rejects a QR key that disagrees with the QC manifest',

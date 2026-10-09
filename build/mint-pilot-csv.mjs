@@ -25,7 +25,7 @@ import { NET } from './config.js';
 import { halfScalar, verifyFrozenVector, buildRecord, parseAndVerifyCard, newMnemonic } from './core.js';
 import { KNOWN_BATCH } from './known-batch.js';
 
-const APP_URL = 'https://bitcards.xyz/app.html';   // the live, audited claim app the QR opens
+const APP_URL = 'https://bitcardssetup.com/app.html';   // the live, audited claim app the QR opens
 const n = secp.CURVE.n;
 
 function mint(serial){

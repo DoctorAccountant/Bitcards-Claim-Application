@@ -59,19 +59,19 @@
   <p class="tag">For anyone who would rather not depend on a website at all. This page never uses the internet.</p>
 
   <div class="warn">
-    <b>How this is different from the normal claim page.</b> The quick page at bitcards.xyz/app.html rebuilds your full key inside a web page, so it trusts that the page was delivered honestly. This tool avoids that, <b>but only when you run it from a saved copy on a device with no internet.</b> Opened live from a website it is no safer than any website, so it will not accept your words until you save it and open the saved file. It contains no networking code, and it hands your key to a trusted wallet app (Sparrow or Electrum) to do the actual sending.
+    <b>How this is different from the normal claim page.</b> The quick page at bitcardssetup.com/app.html rebuilds your full key inside a web page, so it trusts that the page was delivered honestly. This tool avoids that, <b>but only when you run it from a saved copy on a device with no internet.</b> Opened live from a website it is no safer than any website, so it will not accept your words until you save it and open the saved file. It contains no networking code, and it hands your key to a trusted wallet app (Sparrow or Electrum) to do the actual sending.
   </div>
 
   <div class="warn hide" id="liveGate" style="background:#fdeaea;border-color:#e6b3b3;color:#7a1212">
     <b>You are viewing this over the web, so word entry is turned off on purpose.</b> To use it safely:
     <ol>
       <li><b>Download</b> this page: <a id="dlLink" href="offline.html" download="bitcard-offline.html">save bitcard-offline.html</a> (or press Ctrl+S and choose "HTML only").</li>
-      <li>Check its SHA-256 matches the value published at bitcards.xyz (for example, Get-FileHash on Windows, or shasum -a 256).</li>
+      <li>Check its SHA-256 matches the value published at bitcardssetup.com (for example, Get-FileHash on Windows, or shasum -a 256).</li>
       <li><b>Disconnect from the internet,</b> then open the saved file. Word entry unlocks automatically.</li>
       <li>When you are finished, press Done to clear the screen, close the page, and only then reconnect.</li>
     </ol>
     <p style="margin:8px 0 0">One honest note: this page can tell that it was opened from a saved file, but it cannot tell whether your internet is actually switched off. What protects you is that this file contains no networking code at all, so it has no way to send anything anywhere.</p>
-    Would rather not do all this? The normal claim page at bitcards.xyz/app.html does the same job in a couple of taps.
+    Would rather not do all this? The normal claim page at bitcardssetup.com/app.html does the same job in a couple of taps.
   </div>
 
   <div class="card">
@@ -170,7 +170,7 @@
 
   <details>
     <summary>Is this tool genuine? (optional check)</summary>
-    <div class="note" style="margin-top:10px">This page does all its work on your device and has no way to reach the internet (its content policy is connect-src 'none' and it contains no networking code). It reproduces the same key as the open recovery method and the small Python recovery tool, so any of them can check the others. To be sure you have the real file, compare its full SHA-256 with the value published at bitcards.xyz, and best of all, get it from a source you trust and run it offline.</div>
+    <div class="note" style="margin-top:10px">This page does all its work on your device and has no way to reach the internet (its content policy is connect-src 'none' and it contains no networking code). It reproduces the same key as the open recovery method and the small Python recovery tool, so any of them can check the others. To be sure you have the real file, compare its full SHA-256 with the value published at bitcardssetup.com, and best of all, get it from a source you trust and run it offline.</div>
     <div id="buildhash"></div>
     <div id="status">starting...</div>
   </details>
