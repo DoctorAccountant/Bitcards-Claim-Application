@@ -4,7 +4,7 @@ This page states what Bitcard protects, what it does not, what has been tested, 
 
 ## Reporting a vulnerability
 
-If you have access to this repository, open an issue that says only that you have a security report and asks for a private channel; the maintainer will reply with one. Do not post exploit details in the issue. If you do not have repository access, use the contact address published at https://bitcards.xyz.
+If you have access to this repository, open an issue that says only that you have a security report and asks for a private channel; the maintainer will reply with one. Do not post exploit details in the issue. If you do not have repository access, use the contact address published at https://bitcardswallet.com.
 
 Please never use real customer card words while testing. Use the published test vectors in `spec/bitcard-test-vectors.json`, freshly generated throwaway keys, or Bitcoin Core regtest coins. Never broadcast test transactions on mainnet.
 

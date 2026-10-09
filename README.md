@@ -9,7 +9,7 @@ Bitcard is an open standard and a set of self-contained tools for a card that ca
 
 Everything needed to recover the bitcoin is on the card and in this repository. If the company, the website and the app all disappeared, the two word-halves plus the open specification would still reconstruct the key.
 
-Live site: https://bitcards.xyz. Hosted app: https://bitcardssetup.com/app.html. Offline tool: https://bitcardssetup.com/offline.html.
+Live site: https://bitcardswallet.com. Hosted app: https://bitcardssetup.com/app.html. Offline tool: https://bitcardssetup.com/offline.html.
 
 ## How it works
 
@@ -30,7 +30,7 @@ The two halves are ordinary BIP39 phrases. Each becomes a secp256k1 scalar; the 
 | A developer or reviewer checking the code | [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md), then [spec/bitcard-claim-spec.md](spec/bitcard-claim-spec.md), then [Rebuild it yourself](#rebuild-it-yourself). The test gate is `node test-all.mjs` in `build/`. |
 | A security researcher | [SECURITY.md](SECURITY.md): threat model, what is and is not protected, how to report. |
 | Operating a print run or a release | [MINT-RUNBOOK.md](MINT-RUNBOOK.md) for manufacturing and [docs/RELEASE.md](docs/RELEASE.md) for publishing the app. |
-| Press or a partner | The media kit at https://bitcards.xyz/media-kit.html and the trust model section below. |
+| Press or a partner | The media kit at https://bitcardswallet.com/media-kit.html and the trust model section below. |
 
 ## What is in this repository
 
