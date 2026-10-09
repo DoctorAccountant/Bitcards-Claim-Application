@@ -66,9 +66,9 @@ This is an additive two-part key, not an on-chain multisig. It gives two-party c
 
 ```
 sha256 of app/claim-app.html:
-0c33b2a1ddf6dffee0e00ce8b2cfa8bbaa5cd78e32e313a94bed31e3d3f4f9b4
+0c338cd34ba73994282414607cc471b78de8fe3d4b04e1e6a720a7cd082e11c2
 sha256 of app/offline.html:
-537a011b908e232dc099d5d637006131b1cf7eaf437b9a3769aad391c0c47ba7
+728b6ec5c5a358c63c549ae9c963d89a72dc1f09fc7dd9c645a8edb1b009ffd7
 ```
 
 PowerShell: `Get-FileHash app/claim-app.html`. Linux and macOS: `shasum -a 256 app/claim-app.html`.

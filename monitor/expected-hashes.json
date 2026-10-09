@@ -1,14 +1,14 @@
 {
   "comment": "Expected SHA-256 of the LIVE deployed artifacts. Written by build/release-finish.mjs, which verifies each URL against the locally built file and refuses to write on any mismatch. Never edit by hand.",
-  "updated": "2026-09-11",
+  "updated": "2026-10-09",
   "artifacts": {
-    "app.html": "0c33b2a1ddf6dffee0e00ce8b2cfa8bbaa5cd78e32e313a94bed31e3d3f4f9b4",
-    "offline.html": "537a011b908e232dc099d5d637006131b1cf7eaf437b9a3769aad391c0c47ba7"
+    "app.html": "0c338cd34ba73994282414607cc471b78de8fe3d4b04e1e6a720a7cd082e11c2",
+    "offline.html": "728b6ec5c5a358c63c549ae9c963d89a72dc1f09fc7dd9c645a8edb1b009ffd7"
   },
   "urls": [
     "https://bitcardssetup.com/app.html",
     "https://bitcardssetup.com/offline.html"
   ],
-  "builtFromCommit": "3a49c27",
-  "commitNote": "builtFromCommit is the commit whose tree produced these artifacts. The commit that CONTAINS this file is the one immediately after it (a file cannot embed its own commit hash). Both describe the same released bytes; verify with: git show 3a49c27:build/core.js"
+  "builtFromCommit": "3022f30",
+  "commitNote": "builtFromCommit is the commit whose tree produced these artifacts. The commit that CONTAINS this file is the one immediately after it (a file cannot embed its own commit hash). Both describe the same released bytes; verify with: git show 3022f30:build/core.js"
 }
