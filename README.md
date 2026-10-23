@@ -103,7 +103,7 @@ You need both sets of 12 words from the card. Run `recover/bitcard-recover.py` o
 
 - Specification: v0.4, marked DRAFT while the format is exercised in production. The on-wire formats in sections 4.1 and 4.3 are frozen.
 - Deployed release: the hashes above, stamped by `build/release-finish.mjs` and watched hourly.
-- Serial ranges recorded in `build/serial-allocations.json`: 101 to 400 (record v1 pilot), 1000 to 1299 (record v2) and 2000 to 2299 (record v2 retail). Serials are inventory data, not authentication.
+- Serial ranges recorded in `build/serial-allocations.json`: 101 to 400 (record v1 pilot), 1000 to 1299 (record v2), 2000 to 2299 (record v2 retail) and 3000 to 3299 (record v2 retail). Serials are inventory data, not authentication.
 - Independent reviews: an external audit of the testnet build in June 2026 and external security reviews in August and September 2026. Findings and their fixes are recorded in the commit history and in `spec/bitcard-claim-history.md`.
 
 ## Release and manufacturing
