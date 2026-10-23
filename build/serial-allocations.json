@@ -43,8 +43,10 @@
     {
       "start": 3000,
       "end": 3299,
-      "state": "reserved-for-mint",
-      "purpose": "retail batch BTC-B002, record v2: 100 orange, 100 black, 100 white; IDs BTC-B002-3000 through BTC-B002-3299"
+      "state": "allocated",
+      "purpose": "retail batch BTC-B002, record v2: 100 orange, 100 black, 100 white; IDs BTC-B002-3000 through BTC-B002-3299",
+      "lockedAt": "2026-10-23T20:36:07.124Z",
+      "note": "locked by mint-pilot-csv before key generation"
     }
   ]
 }
